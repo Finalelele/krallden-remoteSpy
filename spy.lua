@@ -1,4 +1,4 @@
--- QuantumSpy v2.9 (BIG UI + REAL FIX)
+-- QuantumSpy v3 (BIG UI + REAL FIX)
 
 local playerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
 
@@ -14,14 +14,14 @@ ScreenGui.DisplayOrder = 999999999
 -- 🔥 БОЛЬШОЕ ОКНО
 local Main = Instance.new("Frame", ScreenGui)
 Main.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-Main.Size = UDim2.new(0, 500, 0, 340)
+Main.Size = UDim2.new(0, 600, 0, 340)
 Main.Position = UDim2.new(0.5, -250, 0.5, -170)
 Main.Active = true
 Main.Draggable = true 
 
 local Title = Instance.new("TextLabel", Main)
 Title.Size = UDim2.new(1, 0, 0, 35)
-Title.Text = "QUANTUM SPY v2.9"
+Title.Text = "QUANTUM SPY v3"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 
