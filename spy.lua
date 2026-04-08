@@ -1,4 +1,4 @@
--- QuantumSpy v3 (BIG UI + REAL FIX)
+-- QuantumSpy v3 (UI FIX)
 
 local playerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
 
