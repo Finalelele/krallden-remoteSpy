@@ -1,105 +1,86 @@
-local ScreenGui = Instance.new("ScreenGui")
-local MainFrame = Instance.new("Frame")
-local Title = Instance.new("TextLabel")
-local RemoteList = Instance.new("ScrollingFrame")
-local UIListLayout = Instance.new("UIListLayout")
-local DetailsFrame = Instance.new("Frame")
-local DetailsText = Instance.new("TextBox")
-local CopyBtn = Instance.new("TextButton")
+-- QuantumSpy v2.4 (Z-Index Fix)
+local playerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
 
--- Свойства GUI
-ScreenGui.Parent = game:GetService("CoreGui")
+if playerGui:FindFirstChild("QuantumSpyUI") then 
+    playerGui.QuantumSpyUI:Destroy() 
+end
+
+local ScreenGui = Instance.new("ScreenGui", playerGui)
 ScreenGui.Name = "QuantumSpyUI"
+ScreenGui.ResetOnSpawn = false
+-- ЭТА СТРОЧКА ДЕЛАЕТ ОКНО ПОВЕРХ ОСТАЛЬНЫХ
+ScreenGui.DisplayOrder = 999999999 
 
-MainFrame.Name = "MainFrame"
-MainFrame.Parent = ScreenGui
-MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-MainFrame.Position = UDim2.new(0.5, -150, 0.5, -100)
-MainFrame.Size = UDim2.new(0, 400, 0, 300)
-MainFrame.Active = true
-MainFrame.Draggable = true -- Включаем перетаскивание мышью
+local Main = Instance.new("Frame", ScreenGui)
+Main.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Main.Position = UDim2.new(0.5, -200, 0.5, -150)
+Main.Size = UDim2.new(0, 400, 0, 300)
+Main.Active = true
+Main.Draggable = true 
 
-Title.Parent = MainFrame
+local Title = Instance.new("TextLabel", Main)
 Title.Size = UDim2.new(1, 0, 0, 30)
-Title.Text = "QUANTUM SPY v2"
+Title.Text = "QUANTUM SPY v2.4 (Top Priority)"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 
-RemoteList.Parent = MainFrame
-RemoteList.Position = UDim2.new(0, 5, 0, 35)
-RemoteList.Size = UDim2.new(0, 150, 1, -40)
-RemoteList.CanvasSize = UDim2.new(0, 0, 10, 0)
-RemoteList.ScrollBarThickness = 5
+local Scroll = Instance.new("ScrollingFrame", Main)
+Scroll.Position = UDim2.new(0, 5, 0, 35)
+Scroll.Size = UDim2.new(0, 150, 1, -40)
+Scroll.CanvasSize = UDim2.new(0, 0, 50, 0)
+Scroll.ScrollBarThickness = 3
+Instance.new("UIListLayout", Scroll).SortOrder = Enum.SortOrder.LayoutOrder
 
-UIListLayout.Parent = RemoteList
-UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+local Details = Instance.new("TextBox", Main)
+Details.Position = UDim2.new(0, 160, 0, 35)
+Details.Size = UDim2.new(1, -165, 0.8, 0)
+Details.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+Details.TextColor3 = Color3.new(0.8, 0.8, 0.8)
+Details.MultiLine = true
+Details.TextXAlignment = 0
+Details.TextYAlignment = 0
+Details.Text = "Ожидание событий..."
+Details.ClearTextOnFocus = false
+Details.TextWrapped = true
 
-DetailsFrame.Parent = MainFrame
-DetailsFrame.Position = UDim2.new(0, 160, 0, 35)
-DetailsFrame.Size = UDim2.new(1, -165, 1, -40)
-DetailsFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+local Copy = Instance.new("TextButton", Main)
+Copy.Position = UDim2.new(0, 160, 0.85, 5)
+Copy.Size = UDim2.new(1, -165, 0.1, 0)
+Copy.BackgroundColor3 = Color3.fromRGB(60, 100, 60)
+Copy.Text = "COPY ARGS"
+Copy.TextColor3 = Color3.new(1, 1, 1)
 
-DetailsText.Parent = DetailsFrame
-DetailsText.Size = UDim2.new(1, 0, 0.8, 0)
-DetailsText.BackgroundTransparency = 1
-DetailsText.TextColor3 = Color3.new(0.8, 0.8, 0.8)
-DetailsText.TextWrapped = true
-DetailsText.ClearTextOnFocus = false
-DetailsText.TextXAlignment = Enum.TextXAlignment.Left
-DetailsText.TextYAlignment = Enum.TextYAlignment.Top
-DetailsText.MultiLine = true
-DetailsText.Text = "Выберите Remote для просмотра..."
-
-CopyBtn.Parent = DetailsFrame
-CopyBtn.Position = UDim2.new(0, 5, 0.85, 0)
-CopyBtn.Size = UDim2.new(1, -10, 0.1, 0)
-CopyBtn.BackgroundColor3 = Color3.fromRGB(60, 120, 60)
-CopyBtn.Text = "COPY TO CLIPBOARD"
-CopyBtn.TextColor3 = Color3.new(1, 1, 1)
-
--- Логика перехвата
-local capturedData = {}
-
-local function addRemoteButton(remote, args)
-    local btn = Instance.new("TextButton")
-    btn.Parent = RemoteList
-    btn.Size = UDim2.new(1, 0, 0, 25)
-    btn.Text = remote.Name
-    btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    btn.TextColor3 = Color3.new(1, 1, 1)
-    
-    btn.MouseButton1Click:Connect(function()
-        local info = "Path: " .. remote:GetFullName() .. "\n\nArgs:\n"
-        for i, v in pairs(args) do
-            info = info .. "[" .. i .. "] (" .. typeof(v) .. "): " .. tostring(v) .. "\n"
+local function addLog(rem, args)
+    local b = Instance.new("TextButton", Scroll)
+    b.Size = UDim2.new(1, 0, 0, 25)
+    b.Text = rem.Name
+    b.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    b.TextColor3 = Color3.new(1, 1, 1)
+    b.MouseButton1Click:Connect(function()
+        local s = "Path: "..rem:GetFullName().."\n\nArgs: "
+        for i, v in pairs(args) do 
+            s = s.."\n["..i.."] ("..typeof(v).."): "..tostring(v) 
         end
-        DetailsText.Text = info
+        Details.Text = s
     end)
 end
 
-CopyBtn.MouseButton1Click:Connect(function()
-    setclipboard(DetailsText.Text)
-    CopyBtn.Text = "COPIED!"
-    wait(1)
-    CopyBtn.Text = "COPY TO CLIPBOARD"
+Copy.MouseButton1Click:Connect(function() 
+    setclipboard(Details.Text) 
+    Copy.Text = "COPIED!"
+    task.wait(1)
+    Copy.Text = "COPY ARGS"
 end)
 
--- ХУК МЕТАТАБЛИЦЫ
 local mt = getrawmetatable(game)
-local oldNamecall = mt.__namecall
+local old = mt.__namecall
 setreadonly(mt, false)
 
 mt.__namecall = newcclosure(function(self, ...)
-    local method = getnamecallmethod()
-    local args = {...}
-
-    if (method == "FireServer" or method == "fireServer") and not checkcaller() then
-        -- Добавляем в UI
-        addRemoteButton(self, args)
+    local m = getnamecallmethod()
+    if (m == "FireServer" or m == "fireServer") and not checkcaller() then
+        addLog(self, {...})
     end
-
-    -- ВАЖНО: Возвращаем оригинальный вызов, чтобы действие в игре сработало!
-    return oldNamecall(self, ...)
+    return old(self, ...)
 end)
-
 setreadonly(mt, true)
