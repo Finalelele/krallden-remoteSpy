@@ -12,8 +12,8 @@ ScreenGui.DisplayOrder = 999999999
 
 local Main = Instance.new("Frame", ScreenGui)
 Main.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-Main.Position = UDim2.new(0.5, -200, 0.5, -150)
-Main.Size = UDim2.new(0, 400, 0, 300)
+Main.Size = UDim2.new(0, 460, 0, 300)
+Main.Position = UDim2.new(0.5, -230, 0.5, -150)
 Main.Active = true
 Main.Draggable = true 
 
@@ -32,7 +32,7 @@ Instance.new("UIListLayout", Scroll).SortOrder = Enum.SortOrder.LayoutOrder
 
 local Details = Instance.new("TextBox", Main)
 Details.Position = UDim2.new(0, 160, 0, 35)
-Details.Size = UDim2.new(1, -165, 0.7, 0)
+Details.Size = UDim2.new(1, -175, 0.7, 0)
 Details.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 Details.TextColor3 = Color3.new(0.8, 0.8, 0.8)
 Details.MultiLine = true
@@ -44,14 +44,14 @@ Details.TextWrapped = true
 
 local CopyArgs = Instance.new("TextButton", Main)
 CopyArgs.Position = UDim2.new(0, 160, 0.75, 5)
-CopyArgs.Size = UDim2.new(0.5, -5, 0.1, 0)
+CopyArgs.Size = UDim2.new(0.5, -10, 0.1, 0)
 CopyArgs.BackgroundColor3 = Color3.fromRGB(60, 100, 60)
 CopyArgs.Text = "COPY ARGS"
 CopyArgs.TextColor3 = Color3.new(1, 1, 1)
 
 local CopyScript = Instance.new("TextButton", Main)
-CopyScript.Position = UDim2.new(0.5, 0, 0.75, 5)
-CopyScript.Size = UDim2.new(0.5, -5, 0.1, 0)
+CopyScript.Position = UDim2.new(0.5, 5, 0.75, 5)
+CopyScript.Size = UDim2.new(0.5, -10, 0.1, 0)
 CopyScript.BackgroundColor3 = Color3.fromRGB(60, 60, 120)
 CopyScript.Text = "COPY SCRIPT"
 CopyScript.TextColor3 = Color3.new(1, 1, 1)
