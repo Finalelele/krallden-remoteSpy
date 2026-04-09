@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v6.2 - STRING MEMORY SYSTEM ]] --
+-- [[ KRALLDEN SPY v6.3 - REGENERATION SYSTEM ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -12,24 +12,31 @@ local Main = Instance.new("Frame", ScreenGui)
 Main.BackgroundColor3 = Color3.fromRGB(15, 15, 20); Main.Size = UDim2.new(0, 660, 0, 420)
 Main.Position = UDim2.new(0.5, -330, 0.5, -210); Main.Active = true; Main.Draggable = true
 
+-- STORAGE (Наша "Бессмертная" Память)
+local MainMemory = {} -- { {name, path, args, fullText, isSelf}, ... }
+local SpamMemory = {}
+local PathFilter = {} -- Для CONTROL: ON
+local controlMode = true
+local currentSelection = nil
+
 -- HEADER
 local Header = Instance.new("Frame", Main)
 Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(25, 25, 30); Header.ZIndex = 1000
 
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(0.6, 0, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0.03, 0, 0, 0)
-Title.Text = "KRALLDEN SPY v6.2 ARCHIVE"; Title.TextColor3 = Color3.new(1, 1, 1); Title.TextXAlignment = 0; Title.ZIndex = 1001
+Title.Text = "KRALLDEN SPY v6.3 REGEN"; Title.TextColor3 = Color3.new(1, 1, 1); Title.TextXAlignment = 0; Title.ZIndex = 1001
 Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16
 
 local ControlBtn = Instance.new("TextButton", Header)
 ControlBtn.Size = UDim2.new(0, 100, 0, 24); ControlBtn.Position = UDim2.new(1, -155, 0.5, -12)
 ControlBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 255); ControlBtn.Text = "CONTROL: ON"; ControlBtn.ZIndex = 1002
-ControlBtn.TextColor3 = Color3.new(1,1,1); ControlBtn.Font = Enum.Font.SourceSansBold
+ControlBtn.TextColor3 = Color3.new(1,1,1)
 
 local MinBtn = Instance.new("TextButton", Header)
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0)
 MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "_"; MinBtn.ZIndex = 1002
-MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.Font = Enum.Font.SourceSansBold; MinBtn.TextSize = 22
+MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22
 
 -- CONTENT
 local Content = Instance.new("Frame", Main)
@@ -37,42 +44,56 @@ Content.Size = UDim2.new(1, 0, 1, -35); Content.Position = UDim2.new(0, 0, 0, 35
 
 local Scroll = Instance.new("ScrollingFrame", Content)
 Scroll.Position = UDim2.new(0, 8, 0, 8); Scroll.Size = UDim2.new(0, 190, 1, -16)
-Scroll.BackgroundColor3 = Color3.fromRGB(20, 20, 25); Scroll.ZIndex = 10; Scroll.ScrollBarThickness = 3
-Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y; Scroll.BorderSizePixel = 0
+Scroll.BackgroundColor3 = Color3.fromRGB(20, 20, 25); Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y; Scroll.BorderSizePixel = 0
 Instance.new("UIListLayout", Scroll).SortOrder = Enum.SortOrder.LayoutOrder
 
 local SpamFrame = Instance.new("ScrollingFrame", Content)
 SpamFrame.Size = UDim2.new(0, 140, 1, -16); SpamFrame.Position = UDim2.new(1, -148, 0, 8)
-SpamFrame.BackgroundColor3 = Color3.fromRGB(25, 10, 10); SpamFrame.ZIndex = 10; SpamFrame.ScrollBarThickness = 2
-SpamFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y; SpamFrame.BorderSizePixel = 0
+SpamFrame.BackgroundColor3 = Color3.fromRGB(25, 10, 10); SpamFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y; SpamFrame.BorderSizePixel = 0
 Instance.new("UIListLayout", SpamFrame).SortOrder = Enum.SortOrder.LayoutOrder
 
 local Details = Instance.new("TextBox", Content)
 Details.Position = UDim2.new(0, 205, 0, 8); Details.Size = UDim2.new(0, 300, 0.58, 0)
-Details.BackgroundColor3 = Color3.fromRGB(10, 10, 12); Details.TextColor3 = Color3.new(0.9, 0.9, 0.9); Details.ZIndex = 20
-Details.MultiLine = true; Details.TextWrapped = true; Details.TextEditable = false; Details.TextXAlignment = 0; Details.TextYAlignment = 0
-Details.BorderSizePixel = 0; Details.TextSize = 14; Details.Font = Enum.Font.Code
+Details.BackgroundColor3 = Color3.fromRGB(10, 10, 12); Details.TextColor3 = Color3.new(1, 1, 1); Details.MultiLine = true
+Details.TextWrapped = true; Details.TextEditable = false; Details.BorderSizePixel = 0; Details.TextXAlignment = 0; Details.TextYAlignment = 0
 
 local CopyArgs = Instance.new("TextButton", Content)
 CopyArgs.Position = UDim2.new(0, 205, 0.68, 0); CopyArgs.Size = UDim2.new(0, 300, 0.13, 0)
-CopyArgs.BackgroundColor3 = Color3.fromRGB(45, 90, 45); CopyArgs.Text = "COPY ARGS"; CopyArgs.ZIndex = 20
-CopyArgs.TextColor3 = Color3.new(1,1,1); CopyArgs.BorderSizePixel = 0; CopyArgs.Font = Enum.Font.SourceSansBold
+CopyArgs.BackgroundColor3 = Color3.fromRGB(45, 90, 45); CopyArgs.Text = "COPY ARGS"; CopyArgs.TextColor3 = Color3.new(1,1,1)
 
 local CopyScript = Instance.new("TextButton", Content)
 CopyScript.Position = UDim2.new(0, 205, 0.83, 0); CopyScript.Size = UDim2.new(0, 300, 0.13, 0)
-CopyScript.BackgroundColor3 = Color3.fromRGB(60, 60, 120); CopyScript.Text = "COPY SCRIPT"; CopyScript.ZIndex = 20
-CopyScript.TextColor3 = Color3.new(1,1,1); CopyScript.BorderSizePixel = 0; CopyScript.Font = Enum.Font.SourceSansBold
+CopyScript.BackgroundColor3 = Color3.fromRGB(60, 60, 120); CopyScript.Text = "COPY SCRIPT"; CopyScript.TextColor3 = Color3.new(1,1,1)
 
--- UNIVERSAL MEMORY BASE (TEXT-ONLY)
-local textHistory = {} -- Хранит полные данные (Path + Args)
-local pathDatabase = {} -- Хранит только пути для CONTROL: ON
-local spamDatabase = {} -- Статистика для блокировки
-local controlMode = true
-local selectedBtn = nil
+-- REGENERATION ENGINE
+local function CreateVisualButton(parent, data)
+    local b = Instance.new("TextButton", parent)
+    b.Size = UDim2.new(1, -6, 0, 30); b.BorderSizePixel = 0
+    b.Text = (data.isSelf and "[S] " or "") .. data.name
+    b.BackgroundColor3 = data.isSelf and Color3.fromRGB(35, 70, 35) or (parent == SpamFrame and Color3.fromRGB(60, 25, 25) or Color3.fromRGB(40, 40, 45))
+    b.TextColor3 = Color3.new(1,1,1)
+    
+    b.MouseButton1Click:Connect(function()
+        if currentSelection then currentSelection.BackgroundColor3 = currentSelection:GetAttribute("OldCol") end
+        b:SetAttribute("OldCol", b.BackgroundColor3)
+        currentSelection = b; b.BackgroundColor3 = Color3.fromRGB(150, 50, 255)
+        Details.Text = data.fullText
+    end)
+end
 
+local function RebuildGUI()
+    for _, v in pairs(Scroll:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
+    for _, v in pairs(SpamFrame:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
+    currentSelection = nil
+    
+    for _, data in ipairs(MainMemory) do CreateVisualButton(Scroll, data) end
+    for _, data in ipairs(SpamMemory) do CreateVisualButton(SpamFrame, data) end
+end
+
+-- LOGIC
 local function getSafePath(obj)
     local p = ""
-    local success = pcall(function()
+    pcall(function()
         local t = obj
         while t and t ~= game do
             local n = tostring(t.Name)
@@ -80,94 +101,59 @@ local function getSafePath(obj)
             t = t.Parent
         end
     end)
-    return success and "game." .. p:gsub("%.%[", "[") or "game.UnknownObject"
+    return p ~= "" and "game." .. p:gsub("%.%[", "[") or "game.NilObject"
 end
 
 local function addLog(rem, args, isSelf)
-    -- ШАГ 1: Мгновенная конвертация в текст
-    local eventName = tostring(rem.Name)
     local eventPath = getSafePath(rem)
+    local eventName = tostring(rem.Name)
+    
     local argStrings = {}
     for _, v in pairs(args) do 
-        pcall(function() 
-            table.insert(argStrings, (typeof(v) == "Instance" and getSafePath(v) or (typeof(v) == "string" and '"'..v..'"' or tostring(v))))
-        end)
+        pcall(function() table.insert(argStrings, (typeof(v) == "Instance" and getSafePath(v) or (typeof(v) == "string" and '"'..v..'"' or tostring(v)))) end)
     end
     local finalArgs = table.concat(argStrings, ", ")
-    local fullLogText = "Path: "..eventPath.."\n\nArgs: "..finalArgs.."\n\nScript: "..eventPath..":FireServer("..finalArgs..")"
+    local fullText = "Path: "..eventPath.."\n\nArgs: "..finalArgs.."\n\nScript: "..eventPath..":FireServer("..finalArgs..")"
     
-    local uniqueID = eventPath .. "|" .. finalArgs -- Уникальный ключ Path + Args
-    local currentTime = tick()
-
-    -- ШАГ 2: Проверка CONTROL: ON
     if controlMode and not isSelf then
-        if pathDatabase[eventPath] then return end -- Если этот ПУТЬ уже был, игнорируем
+        if PathFilter[eventPath] then return end
     end
 
-    -- ШАГ 3: Проверка Спама и Блокировки
-    if not controlMode and not isSelf then
-        if not spamDatabase[eventPath] then 
-            spamDatabase[eventPath] = {lastTime = 0, count = 0, isBlocked = false} 
-        end
-        local data = spamDatabase[eventPath]
-        
-        if data.isBlocked then return end
-        
-        local isFast = (currentTime - data.lastTime < 0.8)
-        data.lastTime = currentTime
+    local data = {name = eventName, path = eventPath, args = finalArgs, fullText = fullText, isSelf = isSelf}
 
-        if isFast then
-            data.count = data.count + 1
-            if data.count > 15 then 
-                data.isBlocked = true
-                warn("[KRALLDEN]: Blocked spam from " .. eventName)
-                return 
-            end
-            
-            -- Кнопка в СПАМ лист
-            local sb = Instance.new("TextButton", SpamFrame)
-            sb.Size = UDim2.new(1, -6, 0, 28); sb.Text = eventName; sb.ZIndex = 100
-            sb.BackgroundColor3 = Color3.fromRGB(60, 25, 25); sb.TextColor3 = Color3.new(1,1,1); sb.BorderSizePixel = 0
-            sb.MouseButton1Click:Connect(function() Details.Text = fullLogText end)
+    -- Проверка на спам (если Control OFF)
+    if not controlMode and not isSelf then
+        local uniqueKey = eventPath .. finalArgs
+        local isDuplicate = false
+        for _, m in ipairs(MainMemory) do if m.path .. m.args == uniqueKey then isDuplicate = true break end end
+        
+        if isDuplicate then
+            table.insert(SpamMemory, data)
+            if Content.Visible then CreateVisualButton(SpamFrame, data) end
             return
         end
     end
 
-    -- ШАГ 4: Основное окно (Если ивент новый или медленный)
-    if textHistory[uniqueID] and not isSelf then return end
-    
-    textHistory[uniqueID] = true
-    pathDatabase[eventPath] = true
-
-    local b = Instance.new("TextButton", Scroll)
-    b.Size = UDim2.new(1, -6, 0, 30); b.Text = (isSelf and "[S] " or "") .. eventName; b.ZIndex = 100
-    b.BackgroundColor3 = isSelf and Color3.fromRGB(35, 70, 35) or Color3.fromRGB(40, 40, 45)
-    b.TextColor3 = Color3.new(1,1,1); b.BorderSizePixel = 0
-    
-    b.MouseButton1Click:Connect(function()
-        if selectedBtn then selectedBtn.BackgroundColor3 = selectedBtn:GetAttribute("OldCol") end
-        b:SetAttribute("OldCol", b.BackgroundColor3)
-        selectedBtn = b; b.BackgroundColor3 = Color3.fromRGB(150, 50, 255)
-        Details.Text = fullLogText
-    end)
+    table.insert(MainMemory, data)
+    PathFilter[eventPath] = true
+    if Content.Visible then CreateVisualButton(Scroll, data) end
 end
 
--- CONTROLS
-ControlBtn.MouseButton1Click:Connect(function()
-    controlMode = not controlMode
-    ControlBtn.Text = "CONTROL: " .. (controlMode and "ON" or "OFF")
-    ControlBtn.BackgroundColor3 = controlMode and Color3.fromRGB(150, 50, 255) or Color3.fromRGB(80, 80, 85)
-    -- Полная очистка памяти при смене режима
-    textHistory, pathDatabase, spamDatabase = {}, {}, {}
-    for _, v in pairs(Scroll:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
-    for _, v in pairs(SpamFrame:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
-end)
-
+-- BUTTON EVENTS
 MinBtn.MouseButton1Click:Connect(function()
     Content.Visible = not Content.Visible
     ControlBtn.Visible = Content.Visible
     Main:TweenSize(Content.Visible and UDim2.new(0, 660, 0, 420) or UDim2.new(0, 240, 0, 35), "Out", "Quad", 0.1, true)
     MinBtn.Text = Content.Visible and "_" or "+"
+    if Content.Visible then RebuildGUI() end -- ПЕРЕСБОРКА ПРИ РАЗВОРАЧИВАНИИ
+end)
+
+ControlBtn.MouseButton1Click:Connect(function()
+    controlMode = not controlMode
+    ControlBtn.Text = "CONTROL: " .. (controlMode and "ON" or "OFF")
+    ControlBtn.BackgroundColor3 = controlMode and Color3.fromRGB(150, 50, 255) or Color3.fromRGB(80, 80, 85)
+    MainMemory, SpamMemory, PathFilter = {}, {}, {}
+    RebuildGUI()
 end)
 
 CopyArgs.MouseButton1Click:Connect(function() setclipboard(Details.Text:match("Args: (.*)\n\nScript") or "") end)
