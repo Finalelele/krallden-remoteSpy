@@ -1,4 +1,4 @@
--- [[ QUANTUM SPY v5.1 ]] --
+-- [[ QUANTUM SPY v5.2 ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -13,25 +13,25 @@ Main.Position = UDim2.new(0.5, -310, 0.5, -200); Main.Active = true; Main.Dragga
 
 -- HEADER
 local Header = Instance.new("Frame", Main)
-Header.Size = UDim2.new(1, 0, 0, 30); Header.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-Header.ZIndex = 20 -- Выше всего остального
+Header.Size = UDim2.new(1, 0, 0, 30); Header.BackgroundColor3 = Color3.fromRGB(35, 35, 40); Header.ZIndex = 10
 
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(0.4, 0, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0.05, 0, 0, 0)
-Title.Text = "QUANTUM SPY v5.1"; Title.TextColor3 = Color3.new(1, 1, 1); Title.TextXAlignment = 0; Title.ZIndex = 21
+Title.Text = "QUANTUM SPY v5.2"; Title.TextColor3 = Color3.new(1, 1, 1); Title.TextXAlignment = 0; Title.ZIndex = 11
 
 local ControlBtn = Instance.new("TextButton", Header)
 ControlBtn.Size = UDim2.new(0, 100, 0, 24); ControlBtn.Position = UDim2.new(1, -145, 0.5, -12)
 ControlBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 255); ControlBtn.Text = "CONTROL: ON"
-ControlBtn.TextColor3 = Color3.new(1, 1, 1); ControlBtn.Font = Enum.Font.SourceSansBold; ControlBtn.ZIndex = 22
+ControlBtn.TextColor3 = Color3.new(1, 1, 1); ControlBtn.Font = Enum.Font.SourceSansBold; ControlBtn.ZIndex = 12
 
 local MinBtn = Instance.new("TextButton", Header)
 MinBtn.Size = UDim2.new(0, 30, 0, 30); MinBtn.Position = UDim2.new(1, -35, 0, 0)
-MinBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55); MinBtn.Text = "_"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.ZIndex = 22
+MinBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55); MinBtn.Text = "_"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.ZIndex = 12
 
 -- CONTENT
 local TweenFrame = Instance.new("Frame", Main)
-TweenFrame.Size = UDim2.new(1, 0, 1, -30); TweenFrame.Position = UDim2.new(0, 0, 0, 30); TweenFrame.BackgroundTransparency = 1; TweenFrame.ZIndex = 1
+TweenFrame.Name = "ContentFrame"; TweenFrame.Size = UDim2.new(1, 0, 1, -30); TweenFrame.Position = UDim2.new(0, 0, 0, 30)
+TweenFrame.BackgroundTransparency = 1; TweenFrame.ZIndex = 1
 
 local Scroll = Instance.new("ScrollingFrame", TweenFrame)
 Scroll.Position = UDim2.new(0, 5, 0, 5); Scroll.Size = UDim2.new(0, 220, 1, -15); Scroll.ScrollBarThickness = 4; Scroll.ZIndex = 2
@@ -39,7 +39,7 @@ Instance.new("UIListLayout", Scroll).SortOrder = Enum.SortOrder.LayoutOrder
 
 local SpamFrame = Instance.new("ScrollingFrame", TweenFrame)
 SpamFrame.Size = UDim2.new(0, 160, 1, -15); SpamFrame.Position = UDim2.new(1, 5, 0, 5)
-SpamFrame.BackgroundColor3 = Color3.fromRGB(30, 15, 15); SpamFrame.ZIndex = 2
+SpamFrame.BackgroundColor3 = Color3.fromRGB(30, 15, 15); SpamFrame.ZIndex = 2; SpamFrame.ScrollBarThickness = 2
 Instance.new("UIListLayout", SpamFrame).SortOrder = Enum.SortOrder.LayoutOrder
 
 local Details = Instance.new("TextBox", TweenFrame)
@@ -61,7 +61,7 @@ local selectedData = nil
 local controlMode = true
 local minimized = false
 
--- FIXED MINIMIZE LOGIC
+-- MINIMIZE
 MinBtn.MouseButton1Click:Connect(function()
     minimized = not minimized
     TweenFrame.Visible = not minimized
@@ -85,15 +85,15 @@ end)
 
 local function getSafePath(obj)
     local path = ""
-    pcall(function()
+    local success = pcall(function()
         local temp = obj
         while temp and temp ~= game do
-            local name = temp.Name
+            local name = tostring(temp.Name)
             path = (name:match("[%s%W]") and '["'..name..'"]' or name) .. (path ~= "" and "." .. path or "")
             temp = temp.Parent
         end
     end)
-    return "game." .. path:gsub("%.%[", "[")
+    return success and "game." .. path:gsub("%.%[", "[") or "game.Unknown_Object"
 end
 
 local function formatVal(v)
@@ -102,11 +102,13 @@ local function formatVal(v)
     if t == "table" then
         local s = "{"
         local count = 0
-        for k, val in pairs(v) do 
-            count = count + 1
-            s = s .. tostring(k) .. "=" .. (typeof(val) == "string" and '"'..val..'"' or tostring(val)) .. ", "
-            if count > 5 or #s > 60 then s = s .. "..." break end
-        end
+        pcall(function()
+            for k, val in pairs(v) do 
+                count = count + 1
+                s = s .. tostring(k) .. "=" .. (typeof(val) == "string" and '"'..val..'"' or tostring(val)) .. ", "
+                if count > 5 or #s > 60 then s = s .. "..." break end
+            end
+        end)
         return s:gsub(", $", "") .. "}"
     elseif t == "Instance" then return getSafePath(v)
     elseif t == "string" then return '"'..v..'"'
@@ -114,7 +116,7 @@ local function formatVal(v)
 end
 
 local function addLog(rem, args, isSelf)
-    local name = rem.Name
+    local name = tostring(rem.Name)
     local fullPath = getSafePath(rem)
     
     if controlMode and pathHistory[fullPath] and not isSelf then return end
@@ -140,15 +142,13 @@ local function addLog(rem, args, isSelf)
         
         if isSpamming then
             local b = Instance.new("TextButton", SpamFrame)
-            b.Size = UDim2.new(1, 0, 0, 26); b.Text = name; b.ZIndex = 5
+            b.Size = UDim2.new(1, 0, 0, 26); b.Text = name; b.ZIndex = 5; b.BorderSizePixel = 0
             b.BackgroundColor3 = Color3.fromRGB(70, 30, 30); b.TextColor3 = Color3.new(1, 1, 1)
-            task.defer(function()
-                b.MouseButton1Click:Connect(function()
-                    if selectedData then selectedData.btn.BackgroundColor3 = selectedData.color end
-                    selectedData = {btn = b, color = Color3.fromRGB(70, 30, 30)}
-                    b.BackgroundColor3 = Color3.fromRGB(150, 50, 255)
-                    Details.Text = "Path: "..fullPath.."\n\nArgs: "..argStr.."\n\nScript: "..fullPath..":FireServer("..argStr..")"
-                end)
+            b.MouseButton1Click:Connect(function()
+                if selectedData then selectedData.btn.BackgroundColor3 = selectedData.color end
+                selectedData = {btn = b, color = Color3.fromRGB(70, 30, 30)}
+                b.BackgroundColor3 = Color3.fromRGB(150, 50, 255)
+                Details.Text = "Path: "..fullPath.."\n\nArgs: "..argStr.."\n\nScript: "..fullPath..":FireServer("..argStr..")"
             end)
             return
         end
@@ -159,13 +159,31 @@ local function addLog(rem, args, isSelf)
     pathHistory[fullPath] = true
     
     local b = Instance.new("TextButton", Scroll)
-    b.Size = UDim2.new(1, 0, 0, 26); b.Text = (isSelf and "[S] " or "") .. name; b.ZIndex = 5
+    b.Size = UDim2.new(1, 0, 0, 26); b.Text = (isSelf and "[S] " or "") .. name; b.ZIndex = 5; b.BorderSizePixel = 0
     local defCol = isSelf and Color3.fromRGB(30, 60, 30) or Color3.fromRGB(40, 40, 40)
     b.BackgroundColor3 = defCol; b.TextColor3 = Color3.new(1, 1, 1)
     
-    task.defer(function()
-        b.MouseButton1Click:Connect(function()
-            if selectedData then selectedData.btn.BackgroundColor3 = selectedData.color end
-            selectedData = {btn = b, color = defCol}
-            b.BackgroundColor3 = Color3.fromRGB(150, 50, 255)
-            Details.Text = "Path: "..fullPath.."\n\nArgs: "..argStr.."\n\nScript: "..fullPath..":FireServer("..argStr..")"
+    b.MouseButton1Click:Connect(function()
+        if selectedData then selectedData.btn.BackgroundColor3 = selectedData.color end
+        selectedData = {btn = b, color = defCol}
+        b.BackgroundColor3 = Color3.fromRGB(150, 50, 255)
+        Details.Text = "Path: "..fullPath.."\n\nArgs: "..argStr.."\n\nScript: "..fullPath..":FireServer("..argStr..")"
+    end)
+end
+
+CopyArgs.MouseButton1Click:Connect(function() setclipboard(Details.Text:match("Args: (.*)\n\nScript") or "") end)
+CopyScript.MouseButton1Click:Connect(function() setclipboard(Details.Text:match("Script: (.*)") or "") end)
+
+local mt = getrawmetatable(game)
+local old = mt.__namecall
+setreadonly(mt, false)
+mt.__namecall = newcclosure(function(self, ...)
+    local method = getnamecallmethod()
+    if method == "FireServer" or method == "fireServer" then
+        local args = {...}
+        local isSelf = checkcaller()
+        task.spawn(function() pcall(addLog, self, args, isSelf) end)
+    end
+    return old(self, ...)
+end)
+setreadonly(mt, true)
