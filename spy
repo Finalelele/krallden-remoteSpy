@@ -1,11 +1,9 @@
--- [[ KRALLDEN SPY v5.7 - FIX READONLY ERROR ]] --
+-- [[ KRALLDEN SPY v5.8 - IMMORTAL ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-if playerGui:FindFirstChild("KralldenSpyUI") then 
-    playerGui.KralldenSpyUI:Destroy() 
-end
+if playerGui:FindFirstChild("KralldenSpyUI") then playerGui.KralldenSpyUI:Destroy() end
 
 local ScreenGui = Instance.new("ScreenGui", playerGui)
 ScreenGui.Name = "KralldenSpyUI"; ScreenGui.ResetOnSpawn = false; ScreenGui.DisplayOrder = 2147483647
@@ -16,129 +14,124 @@ Main.Position = UDim2.new(0.5, -310, 0.5, -200); Main.Active = true; Main.Dragga
 
 -- HEADER
 local Header = Instance.new("Frame", Main)
-Header.Size = UDim2.new(1, 0, 0, 30); Header.BackgroundColor3 = Color3.fromRGB(35, 35, 40); Header.ZIndex = 100
+Header.Size = UDim2.new(1, 0, 0, 30); Header.BackgroundColor3 = Color3.fromRGB(35, 35, 40); Header.ZIndex = 500
 
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(0.4, 0, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0.05, 0, 0, 0)
-Title.Text = "KRALLDEN SPY v5.7"; Title.TextColor3 = Color3.new(1, 1, 1); Title.TextXAlignment = 0; Title.ZIndex = 101
+Title.Text = "KRALLDEN SPY v5.8"; Title.TextColor3 = Color3.new(1, 1, 1); Title.TextXAlignment = 0; Title.ZIndex = 501
 
 local ControlBtn = Instance.new("TextButton", Header)
 ControlBtn.Size = UDim2.new(0, 100, 0, 22); ControlBtn.Position = UDim2.new(1, -145, 0.5, -11)
-ControlBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 255); ControlBtn.Text = "CONTROL: ON"
-ControlBtn.TextColor3 = Color3.new(1, 1, 1); ControlBtn.Font = Enum.Font.SourceSansBold; ControlBtn.ZIndex = 102
+ControlBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 255); ControlBtn.Text = "CONTROL: ON"; ControlBtn.ZIndex = 502
 
 local MinBtn = Instance.new("TextButton", Header)
 MinBtn.Size = UDim2.new(0, 30, 0, 30); MinBtn.Position = UDim2.new(1, -35, 0, 0)
-MinBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55); MinBtn.Text = "_"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.ZIndex = 102
+MinBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55); MinBtn.Text = "_"; MinBtn.ZIndex = 502
 
 -- CONTENT
-local ContentFrame = Instance.new("Frame", Main)
-ContentFrame.Name = "ContentFrame"; ContentFrame.Size = UDim2.new(1, 0, 1, -30); ContentFrame.Position = UDim2.new(0, 0, 0, 30)
-ContentFrame.BackgroundTransparency = 1; ContentFrame.ZIndex = 1
+local Content = Instance.new("Frame", Main)
+Content.Size = UDim2.new(1, 0, 1, -30); Content.Position = UDim2.new(0, 0, 0, 30); Content.BackgroundTransparency = 1
 
-local Scroll = Instance.new("ScrollingFrame", ContentFrame)
+local Scroll = Instance.new("ScrollingFrame", Content)
 Scroll.Position = UDim2.new(0, 5, 0, 5); Scroll.Size = UDim2.new(0, 220, 1, -15)
 Scroll.BackgroundColor3 = Color3.fromRGB(25, 25, 25); Scroll.ZIndex = 10; Scroll.ScrollBarThickness = 4
-Scroll.CanvasSize = UDim2.new(0, 0, 0, 0); Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-Instance.new("UIListLayout", Scroll).SortOrder = Enum.SortOrder.LayoutOrder
+Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 
-local Details = Instance.new("TextBox", ContentFrame)
+local List = Instance.new("UIListLayout", Scroll)
+List.SortOrder = Enum.SortOrder.LayoutOrder; List.Padding = UDim.new(0, 2)
+
+local Details = Instance.new("TextBox", Content)
 Details.Position = UDim2.new(0, 230, 0, 5); Details.Size = UDim2.new(0, 380, 0.55, 0)
-Details.BackgroundColor3 = Color3.fromRGB(10, 10, 10); Details.TextColor3 = Color3.new(1, 1, 1); Details.ZIndex = 10
-Details.MultiLine = true; Details.TextXAlignment = 0; Details.TextYAlignment = 0; Details.Text = "Logs..."
-Details.TextWrapped = true; Details.ClearTextOnFocus = false; Details.TextEditable = false -- ИСПРАВЛЕНО ЗДЕСЬ
+Details.BackgroundColor3 = Color3.fromRGB(10, 10, 10); Details.TextColor3 = Color3.new(1, 1, 1); Details.ZIndex = 20
+Details.MultiLine = true; Details.TextWrapped = true; Details.TextEditable = false; Details.TextXAlignment = 0; Details.TextYAlignment = 0
 
-local CopyArgs = Instance.new("TextButton", ContentFrame)
+local CopyArgs = Instance.new("TextButton", Content)
 CopyArgs.Position = UDim2.new(0, 230, 0.65, 0); CopyArgs.Size = UDim2.new(0, 380, 0.15, 0)
-CopyArgs.BackgroundColor3 = Color3.fromRGB(60, 120, 60); CopyArgs.Text = "COPY ARGS"; CopyArgs.ZIndex = 10
+CopyArgs.BackgroundColor3 = Color3.fromRGB(60, 120, 60); CopyArgs.Text = "COPY ARGS"; CopyArgs.ZIndex = 20
 
-local CopyScript = Instance.new("TextButton", ContentFrame)
+local CopyScript = Instance.new("TextButton", Content)
 CopyScript.Position = UDim2.new(0, 230, 0.82, 0); CopyScript.Size = UDim2.new(0, 380, 0.15, 0)
-CopyScript.BackgroundColor3 = Color3.fromRGB(80, 80, 160); CopyScript.Text = "COPY SCRIPT"; CopyScript.ZIndex = 10
+CopyScript.BackgroundColor3 = Color3.fromRGB(80, 80, 160); CopyScript.Text = "COPY SCRIPT"; CopyScript.ZIndex = 20
 
 -- LOGIC
-local history, pathHistory = {}, {}
-local selectedData = nil
+local pathHistory = {}
+local selectedBtn = nil
 local controlMode = true
 
 local function getSafePath(obj)
-    local success, result = pcall(function()
-        local path = ""
-        local temp = obj
-        while temp and temp ~= game do
-            local name = tostring(temp.Name)
-            path = (name:match("[%s%W]") and '["'..name..'"]' or name) .. (path ~= "" and "." .. path or "")
-            temp = temp.Parent
+    local p = ""
+    pcall(function()
+        local t = obj
+        while t and t ~= game do
+            local n = tostring(t.Name)
+            p = (n:match("[%s%W]") and '["'..n..'"]' or n) .. (p ~= "" and "." .. p or "")
+            t = t.Parent
         end
-        return "game." .. path:gsub("%.%[", "[")
     end)
-    return success and result or "game.UnknownObject"
-end
-
-local function formatVal(v)
-    local t = typeof(v)
-    if t == "Instance" then return getSafePath(v)
-    elseif t == "string" then return '"'..v..'"'
-    elseif t == "table" then return "{...}"
-    end
-    return tostring(v)
+    return p ~= "" and "game." .. p:gsub("%.%[", "[") or "game.NilObject"
 end
 
 local function addLog(rem, args, isSelf)
-    local path = getSafePath(rem)
     local name = tostring(rem.Name)
+    local path = getSafePath(rem)
     
     if controlMode and pathHistory[path] and not isSelf then return end
-    
-    local argList = {}
-    for i, v in pairs(args) do table.insert(argList, formatVal(v)) end
-    local argStr = table.concat(argList, ", ")
-    local finalStr = "Path: "..path.."\n\nArgs: "..argStr.."\n\nScript: "..path..":FireServer("..argStr..")"
-    
     pathHistory[path] = true
-    print("[CATCHED] -> " .. name)
-
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.new(1, -5, 0, 26); b.Text = (isSelf and "[S] " or "") .. name
-    b.BackgroundColor3 = isSelf and Color3.fromRGB(30, 60, 30) or Color3.fromRGB(40, 40, 40)
-    b.TextColor3 = Color3.new(1, 1, 1); b.ZIndex = 50; b.Parent = Scroll
     
+    -- СРАЗУ собираем всё в текст. Если объект удалится — нам плевать.
+    local argStrings = {}
+    for _, v in pairs(args) do 
+        local success, res = pcall(function() 
+            return (typeof(v) == "Instance" and getSafePath(v) or (typeof(v) == "string" and '"'..v..'"' or tostring(v)))
+        end)
+        table.insert(argStrings, success and res or "ERR")
+    end
+    local argStr = table.concat(argStrings, ", ")
+    local dataText = "Path: "..path.."\n\nArgs: "..argStr.."\n\nScript: "..path..":FireServer("..argStr..")"
+
+    print("[CATCHED]: " .. name)
+
+    local b = Instance.new("TextButton", Scroll)
+    b.Size = UDim2.new(1, -10, 0, 28); b.Text = (isSelf and "[S] " or "") .. name
+    b.BackgroundColor3 = isSelf and Color3.fromRGB(30, 60, 30) or Color3.fromRGB(45, 45, 45)
+    b.TextColor3 = Color3.new(1, 1, 1); b.ZIndex = 100; b.BorderSizePixel = 0
+
     b.MouseButton1Click:Connect(function()
-        print("KRALLDEN: Clicked " .. name)
-        if selectedData then selectedData.BackgroundColor3 = Color3.fromRGB(40, 40, 40) end
-        selectedData = b; b.BackgroundColor3 = Color3.fromRGB(150, 50, 255)
-        Details.Text = finalStr
+        print("KRALLDEN: Clicked button for " .. name)
+        if selectedBtn then selectedBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45) end
+        selectedBtn = b; b.BackgroundColor3 = Color3.fromRGB(150, 50, 255)
+        Details.Text = dataText
     end)
 end
 
+-- КНОПКИ УПРАВЛЕНИЯ
 ControlBtn.MouseButton1Click:Connect(function()
     controlMode = not controlMode
-    ControlBtn.Text = controlMode and "CONTROL: ON" or "CONTROL: OFF"
-    ControlBtn.BackgroundColor3 = controlMode and Color3.fromRGB(150, 50, 255) or Color3.fromRGB(80, 80, 80)
+    ControlBtn.Text = "CONTROL: " .. (controlMode and "ON" or "OFF")
+    ControlBtn.BackgroundColor3 = controlMode and Color3.fromRGB(150, 50, 255) or Color3.fromRGB(100, 100, 100)
 end)
 
 MinBtn.MouseButton1Click:Connect(function()
-    Main:TweenSize(ContentFrame.Visible and UDim2.new(0, 200, 0, 30) or UDim2.new(0, 620, 0, 400), "Out", "Quad", 0.2, true)
-    ContentFrame.Visible = not ContentFrame.Visible
-    ControlBtn.Visible = ContentFrame.Visible
+    Content.Visible = not Content.Visible
+    ControlBtn.Visible = Content.Visible
+    Main:TweenSize(Content.Visible and UDim2.new(0, 620, 0, 400) or UDim2.new(0, 200, 0, 30), "Out", "Quad", 0.15, true)
 end)
 
 CopyArgs.MouseButton1Click:Connect(function() setclipboard(Details.Text:match("Args: (.*)\n\nScript") or "") end)
 CopyScript.MouseButton1Click:Connect(function() setclipboard(Details.Text:match("Script: (.*)") or "") end)
 
+-- ХУК
 local mt = getrawmetatable(game)
 local old = mt.__namecall
 setreadonly(mt, false)
-
 mt.__namecall = newcclosure(function(self, ...)
     local method = getnamecallmethod()
-    if (method == "FireServer" or method == "fireServer") then
-        local args = {...}
-        local caller = checkcaller()
-        task.spawn(function() pcall(function() addLog(self, args, caller) end) end)
+    if method == "FireServer" or method == "fireServer" then
+        local a = {...}
+        local s = checkcaller()
+        task.spawn(function() pcall(addLog, self, a, s) end)
     end
     return old(self, ...)
 end)
-
 setreadonly(mt, true)
-warn("KRALLDEN v5.7 FIX LOADED")
+warn("KRALLDEN v5.8 IMMORTAL LOADED")
