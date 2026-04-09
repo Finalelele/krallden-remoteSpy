@@ -1,11 +1,10 @@
--- [[ KRALLDEN SPY v5.6 - FIXED WRAP & CLICK ]] --
+-- [[ KRALLDEN SPY v5.7 - FIX READONLY ERROR ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
 if playerGui:FindFirstChild("KralldenSpyUI") then 
     playerGui.KralldenSpyUI:Destroy() 
-    warn("KRALLDEN: Old UI destroyed")
 end
 
 local ScreenGui = Instance.new("ScreenGui", playerGui)
@@ -21,7 +20,7 @@ Header.Size = UDim2.new(1, 0, 0, 30); Header.BackgroundColor3 = Color3.fromRGB(3
 
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(0.4, 0, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0.05, 0, 0, 0)
-Title.Text = "KRALLDEN SPY v5.6"; Title.TextColor3 = Color3.new(1, 1, 1); Title.TextXAlignment = 0; Title.ZIndex = 101
+Title.Text = "KRALLDEN SPY v5.7"; Title.TextColor3 = Color3.new(1, 1, 1); Title.TextXAlignment = 0; Title.ZIndex = 101
 
 local ControlBtn = Instance.new("TextButton", Header)
 ControlBtn.Size = UDim2.new(0, 100, 0, 22); ControlBtn.Position = UDim2.new(1, -145, 0.5, -11)
@@ -41,28 +40,20 @@ local Scroll = Instance.new("ScrollingFrame", ContentFrame)
 Scroll.Position = UDim2.new(0, 5, 0, 5); Scroll.Size = UDim2.new(0, 220, 1, -15)
 Scroll.BackgroundColor3 = Color3.fromRGB(25, 25, 25); Scroll.ZIndex = 10; Scroll.ScrollBarThickness = 4
 Scroll.CanvasSize = UDim2.new(0, 0, 0, 0); Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-
-local ListLayout = Instance.new("UIListLayout", Scroll)
-ListLayout.SortOrder = Enum.SortOrder.LayoutOrder; ListLayout.Padding = UDim.new(0, 2)
-
-local SpamFrame = Instance.new("ScrollingFrame", ContentFrame)
-SpamFrame.Size = UDim2.new(0, 160, 1, -15); SpamFrame.Position = UDim2.new(1, -165, 0, 5)
-SpamFrame.BackgroundColor3 = Color3.fromRGB(30, 15, 15); SpamFrame.ZIndex = 10; SpamFrame.ScrollBarThickness = 2
-SpamFrame.CanvasSize = UDim2.new(0, 0, 0, 0); SpamFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
-Instance.new("UIListLayout", SpamFrame).SortOrder = Enum.SortOrder.LayoutOrder
+Instance.new("UIListLayout", Scroll).SortOrder = Enum.SortOrder.LayoutOrder
 
 local Details = Instance.new("TextBox", ContentFrame)
-Details.Position = UDim2.new(0, 230, 0, 5); Details.Size = UDim2.new(0, 220, 0.55, 0)
+Details.Position = UDim2.new(0, 230, 0, 5); Details.Size = UDim2.new(0, 380, 0.55, 0)
 Details.BackgroundColor3 = Color3.fromRGB(10, 10, 10); Details.TextColor3 = Color3.new(1, 1, 1); Details.ZIndex = 10
-Details.MultiLine = true; Details.TextXAlignment = 0; Details.TextYAlignment = 0; Details.Text = "Waiting..."
-Details.TextWrapped = true; Details.ClearTextOnFocus = false; Details.ReadOnly = true
+Details.MultiLine = true; Details.TextXAlignment = 0; Details.TextYAlignment = 0; Details.Text = "Logs..."
+Details.TextWrapped = true; Details.ClearTextOnFocus = false; Details.TextEditable = false -- ИСПРАВЛЕНО ЗДЕСЬ
 
 local CopyArgs = Instance.new("TextButton", ContentFrame)
-CopyArgs.Position = UDim2.new(0, 230, 0.65, 0); CopyArgs.Size = UDim2.new(0, 220, 0.15, 0)
+CopyArgs.Position = UDim2.new(0, 230, 0.65, 0); CopyArgs.Size = UDim2.new(0, 380, 0.15, 0)
 CopyArgs.BackgroundColor3 = Color3.fromRGB(60, 120, 60); CopyArgs.Text = "COPY ARGS"; CopyArgs.ZIndex = 10
 
 local CopyScript = Instance.new("TextButton", ContentFrame)
-CopyScript.Position = UDim2.new(0, 230, 0.82, 0); CopyScript.Size = UDim2.new(0, 220, 0.15, 0)
+CopyScript.Position = UDim2.new(0, 230, 0.82, 0); CopyScript.Size = UDim2.new(0, 380, 0.15, 0)
 CopyScript.BackgroundColor3 = Color3.fromRGB(80, 80, 160); CopyScript.Text = "COPY SCRIPT"; CopyScript.ZIndex = 10
 
 -- LOGIC
@@ -86,9 +77,9 @@ end
 
 local function formatVal(v)
     local t = typeof(v)
-    if t == "table" then return "{...}"
-    elseif t == "Instance" then return getSafePath(v)
+    if t == "Instance" then return getSafePath(v)
     elseif t == "string" then return '"'..v..'"'
+    elseif t == "table" then return "{...}"
     end
     return tostring(v)
 end
@@ -105,7 +96,7 @@ local function addLog(rem, args, isSelf)
     local finalStr = "Path: "..path.."\n\nArgs: "..argStr.."\n\nScript: "..path..":FireServer("..argStr..")"
     
     pathHistory[path] = true
-    print("KRALLDEN: NEW LOG ADDED -> " .. name)
+    print("[CATCHED] -> " .. name)
 
     local b = Instance.new("TextButton")
     b.Size = UDim2.new(1, -5, 0, 26); b.Text = (isSelf and "[S] " or "") .. name
@@ -120,7 +111,6 @@ local function addLog(rem, args, isSelf)
     end)
 end
 
--- Основные кнопки
 ControlBtn.MouseButton1Click:Connect(function()
     controlMode = not controlMode
     ControlBtn.Text = controlMode and "CONTROL: ON" or "CONTROL: OFF"
@@ -136,7 +126,6 @@ end)
 CopyArgs.MouseButton1Click:Connect(function() setclipboard(Details.Text:match("Args: (.*)\n\nScript") or "") end)
 CopyScript.MouseButton1Click:Connect(function() setclipboard(Details.Text:match("Script: (.*)") or "") end)
 
--- ПЕРЕХВАТ
 local mt = getrawmetatable(game)
 local old = mt.__namecall
 setreadonly(mt, false)
@@ -146,10 +135,10 @@ mt.__namecall = newcclosure(function(self, ...)
     if (method == "FireServer" or method == "fireServer") then
         local args = {...}
         local caller = checkcaller()
-        task.spawn(function() pcall(addLog, self, args, caller) end)
+        task.spawn(function() pcall(function() addLog(self, args, caller) end) end)
     end
     return old(self, ...)
 end)
 
 setreadonly(mt, true)
-warn("KRALLDEN v5.6 LOADED")
+warn("KRALLDEN v5.7 FIX LOADED")
