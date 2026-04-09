@@ -1,4 +1,4 @@
--- QuantumSpy v3.3 (Ultra Strict Filter)
+-- QuantumSpy v3.4 (Smart Anti-Spam & Auto-Filter)
 local playerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
 
 if playerGui:FindFirstChild("QuantumSpyUI") then 
@@ -17,7 +17,7 @@ Main.Position = UDim2.new(0.5, -250, 0.5, -170)
 Main.Active = true; Main.Draggable = true 
 
 local Title = Instance.new("TextLabel", Main)
-Title.Size = UDim2.new(1, 0, 0, 35); Title.Text = "QUANTUM SPY v3.3 (Strict)"; Title.TextColor3 = Color3.new(1, 1, 1)
+Title.Size = UDim2.new(1, 0, 0, 35); Title.Text = "QUANTUM SPY v3.4 (Auto-Filter)"; Title.TextColor3 = Color3.new(1, 1, 1)
 Title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 
 local Scroll = Instance.new("ScrollingFrame", Main)
@@ -29,7 +29,7 @@ local Details = Instance.new("TextBox", Main)
 Details.Position = UDim2.new(0, 230, 0, 40); Details.Size = UDim2.new(1, -235, 0.6, 0)
 Details.BackgroundColor3 = Color3.fromRGB(20, 20, 20); Details.TextColor3 = Color3.new(0.9, 0.9, 0.9)
 Details.MultiLine = true; Details.TextXAlignment = 0; Details.TextYAlignment = 0
-Details.Text = "Ожидание событий..."; Details.ClearTextOnFocus = false; Details.TextWrapped = true
+Details.Text = "Ожидание..."; Details.ClearTextOnFocus = false; Details.TextWrapped = true
 
 local CopyArgs = Instance.new("TextButton", Main)
 CopyArgs.Position = UDim2.new(0, 230, 0.65, 5); CopyArgs.Size = UDim2.new(1, -235, 0.1, 0)
@@ -39,9 +39,10 @@ local CopyScript = Instance.new("TextButton", Main)
 CopyScript.Position = UDim2.new(0, 230, 0.77, 5); CopyScript.Size = UDim2.new(1, -235, 0.1, 0)
 CopyScript.BackgroundColor3 = Color3.fromRGB(70, 70, 150); CopyScript.Text = "COPY SCRIPT"; CopyScript.TextColor3 = Color3.new(1, 1, 1)
 
--- ЛОГИКА
-local loggedKeys = {} 
-local lastCallTime = {} 
+-- ЛОГИКА ФИЛЬТРАЦИИ
+local loggedKeys = {}      -- Для уникальных "Имя+Args"
+local callCounts = {}      -- Счетчик вызовов по имени
+local isBlacklisted = {}   -- Список забаненных имен
 local currentScript = ""
 
 local function formatArgs(args)
@@ -56,20 +57,26 @@ local function formatArgs(args)
 end
 
 local function addLog(rem, args)
-    local now = tick()
     local name = rem.Name
     local argStr = formatArgs(args)
     local key = name .. "|" .. argStr
-    
-    -- СТРОГАЯ ПРОВЕРКА:
-    -- 1. Если такие аргументы уже были ЗА ВСЁ ВРЕМЯ -> Игнор
-    if loggedKeys[key] then return end
-    
-    -- 2. Если этот Remote вызывается слишком часто (даже с новыми данными) -> Игнор
-    if lastCallTime[name] and (now - lastCallTime[name] < 0.4) then return end
 
+    -- 1. Если ивент в черном списке — полностью игнорируем
+    if isBlacklisted[name] then return end
+
+    -- 2. Считаем количество вызовов этого Remote
+    callCounts[name] = (callCounts[name] or 0) + 1
+    
+    -- 3. Если вызван больше 10 раз — в бан (чтобы не спамил Replicator)
+    if callCounts[name] > 10 then
+        isBlacklisted[name] = true
+        warn("[QuantumSpy] Remote '" .. name .. "' заблокирован из-за спама (>10 вызовов)")
+        return
+    end
+
+    -- 4. Если такие аргументы уже были — скипаем
+    if loggedKeys[key] then return end
     loggedKeys[key] = true
-    lastCallTime[name] = now
 
     local b = Instance.new("TextButton", Scroll)
     b.Size = UDim2.new(1, 0, 0, 28); b.Text = name; b.BackgroundColor3 = Color3.fromRGB(50, 50, 50); b.TextColor3 = Color3.new(1, 1, 1)
