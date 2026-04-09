@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v6.9 - UI RESTORE & SMART FREEZE ]] --
+-- [[ KRALLDEN SPY v7.0 - FINAL STABLE ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -10,21 +10,19 @@ ScreenGui.Name = "KralldenSpyUI"; ScreenGui.ResetOnSpawn = false; ScreenGui.Disp
 
 local Main = Instance.new("Frame", ScreenGui)
 Main.BackgroundColor3 = Color3.fromRGB(15, 15, 20); Main.Size = UDim2.new(0, 660, 0, 420)
-Main.Position = UDim2.new(0.5, -330, 0.5, -210); Main.Active = true; Main.Draggable = true
-Main.BorderSizePixel = 0; Main.ZIndex = 1
+Main.Position = UDim2.new(0.5, -330, 0.5, -210); Main.Active = true; Main.Draggable = true; Main.BorderSizePixel = 0
 
 local MainMemory = {} 
 local PathFilter = {} 
 local controlMode = true
-local currentSelectionID = nil 
+local currentSelectionID = nil -- Теперь хранит уникальный индекс
 local lastCount = 0
 
--- ГЛУБОКИЙ ПАРСЕР ТАБЛИЦ
+-- ПАРСЕР ТАБЛИЦ
 local function parseTable(t, depth)
     depth = depth or 0
     if type(t) ~= "table" or depth > 4 then 
-        if type(t) == "string" then return '"'..t..'"' end
-        return tostring(t) 
+        return type(t) == "string" and '"'..t..'"' or tostring(t) 
     end
     local result = "{"
     local isArray, count, i = true, 0, 0
@@ -32,20 +30,19 @@ local function parseTable(t, depth)
     for k, v in pairs(t) do
         i = i + 1; if i > 15 then result = result .. "... " break end
         local val = parseTable(v, depth + 1)
-        if isArray then result = result .. val
-        else result = result .. '["'..tostring(k)..'"] = ' .. val end
+        result = result .. (isArray and val or '["'..tostring(k)..'"] = ' .. val)
         if i < count then result = result .. ", " end
     end
     return result .. "}"
 end
 
--- HEADER (ZIndex 10)
+-- UI
 local Header = Instance.new("Frame", Main)
 Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(25, 25, 30); Header.ZIndex = 10
 
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(0.5, 0, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0.03, 0, 0, 0)
-Title.Text = "KRALLDEN SPY v6.9 FINAL"; Title.TextColor3 = Color3.new(1, 1, 1); Title.TextXAlignment = 0; Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11
+Title.Text = "KRALLDEN SPY v7.0"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
 
 local ControlBtn = Instance.new("TextButton", Header)
 ControlBtn.Size = UDim2.new(0, 100, 0, 24); ControlBtn.Position = UDim2.new(1, -155, 0.5, -12); ControlBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 255); ControlBtn.Text = "CONTROL: ON"; ControlBtn.TextColor3 = Color3.new(1,1,1); ControlBtn.Font = Enum.Font.SourceSansBold; ControlBtn.ZIndex = 11
@@ -53,57 +50,65 @@ ControlBtn.Size = UDim2.new(0, 100, 0, 24); ControlBtn.Position = UDim2.new(1, -
 local MinBtn = Instance.new("TextButton", Header)
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "_"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 11
 
--- CONTENT CONTAINER
 local ContentFrame = Instance.new("Frame", Main)
-ContentFrame.Size = UDim2.new(1, 0, 1, -35); ContentFrame.Position = UDim2.new(0, 0, 0, 35); ContentFrame.BackgroundTransparency = 1; ContentFrame.ZIndex = 2
+ContentFrame.Size = UDim2.new(1, 0, 1, -35); ContentFrame.Position = UDim2.new(0, 0, 0, 35); ContentFrame.BackgroundTransparency = 1
 
 local Scroll = Instance.new("ScrollingFrame", ContentFrame)
-Scroll.Position = UDim2.new(0, 8, 0, 8); Scroll.Size = UDim2.new(0, 190, 1, -16); Scroll.BackgroundColor3 = Color3.fromRGB(20, 20, 25); Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y; Scroll.BorderSizePixel = 0; Scroll.ZIndex = 3
+Scroll.Position = UDim2.new(0, 8, 0, 8); Scroll.Size = UDim2.new(0, 190, 1, -16); Scroll.BackgroundColor3 = Color3.fromRGB(20, 20, 25); Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y; Scroll.BorderSizePixel = 0
 Instance.new("UIListLayout", Scroll).SortOrder = Enum.SortOrder.LayoutOrder
 
 local Details = Instance.new("TextBox", ContentFrame)
-Details.Position = UDim2.new(0, 205, 0, 8); Details.Size = UDim2.new(0, 445, 0.58, 0); Details.BackgroundColor3 = Color3.fromRGB(10, 10, 12); Details.TextColor3 = Color3.new(1, 1, 1); Details.MultiLine = true; Details.TextWrapped = true; Details.TextEditable = false; Details.BorderSizePixel = 0; Details.TextXAlignment = 0; Details.TextYAlignment = 0; Details.Font = Enum.Font.Code; Details.TextSize = 14; Details.ZIndex = 3; Details.Text = "Waiting for events..."
+Details.Position = UDim2.new(0, 205, 0, 8); Details.Size = UDim2.new(0, 445, 0.58, 0); Details.BackgroundColor3 = Color3.fromRGB(10, 10, 12); Details.TextColor3 = Color3.new(1, 1, 1); Details.MultiLine = true; Details.TextWrapped = true; Details.TextEditable = false; Details.TextXAlignment = 0; Details.TextYAlignment = 0; Details.Font = Enum.Font.Code; Details.TextSize = 14
 
 local CopyArgs = Instance.new("TextButton", ContentFrame)
-CopyArgs.Position = UDim2.new(0, 205, 0.68, 0); CopyArgs.Size = UDim2.new(0, 445, 0.13, 0); CopyArgs.BackgroundColor3 = Color3.fromRGB(45, 90, 45); CopyArgs.Text = "COPY ARGS"; CopyArgs.TextColor3 = Color3.new(1,1,1); CopyArgs.Font = Enum.Font.SourceSansBold; CopyArgs.TextSize = 18; CopyArgs.ZIndex = 3
+CopyArgs.Position = UDim2.new(0, 205, 0.68, 0); CopyArgs.Size = UDim2.new(0, 445, 0.13, 0); CopyArgs.BackgroundColor3 = Color3.fromRGB(45, 90, 45); CopyArgs.Text = "COPY ARGS"; CopyArgs.TextColor3 = Color3.new(1,1,1); CopyArgs.Font = Enum.Font.SourceSansBold; CopyArgs.TextSize = 18
 
 local CopyScript = Instance.new("TextButton", ContentFrame)
-CopyScript.Position = UDim2.new(0, 205, 0.83, 0); CopyScript.Size = UDim2.new(0, 445, 0.13, 0); CopyScript.BackgroundColor3 = Color3.fromRGB(60, 60, 120); CopyScript.Text = "COPY SCRIPT"; CopyScript.TextColor3 = Color3.new(1,1,1); CopyScript.Font = Enum.Font.SourceSansBold; CopyScript.TextSize = 18; CopyScript.ZIndex = 3
+CopyScript.Position = UDim2.new(0, 205, 0.83, 0); CopyScript.Size = UDim2.new(0, 445, 0.13, 0); CopyScript.BackgroundColor3 = Color3.fromRGB(60, 60, 120); CopyScript.Text = "COPY SCRIPT"; CopyScript.TextColor3 = Color3.new(1,1,1); CopyScript.Font = Enum.Font.SourceSansBold; CopyScript.TextSize = 18
 
--- ЛОГИКА ОБНОВЛЕНИЯ (С ЗАМОРОЗКОЙ)
+-- ОБНОВЛЕНИЕ UI
 local function RebuildGUI()
-    -- Если окно свернуто или новых ивентов нет - ничего не делаем
     if not ContentFrame.Visible or #MainMemory == lastCount then return end
     lastCount = #MainMemory
     
-    for _, child in pairs(Scroll:GetChildren()) do
-        if child:IsA("TextButton") then child:Destroy() end
-    end
+    for _, child in pairs(Scroll:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
 
     for i, data in ipairs(MainMemory) do
         local b = Instance.new("TextButton", Scroll)
-        b.Size = UDim2.new(1, -6, 0, 30); b.BorderSizePixel = 0; b.ZIndex = 4
-        b.Text = (data.isSelf and "[S] " or "") .. data.name; b.LayoutOrder = i
-        
-        local uniqueID = data.path .. data.args
-        b.BackgroundColor3 = (currentSelectionID == uniqueID) and Color3.fromRGB(150, 50, 255) or (data.isSelf and Color3.fromRGB(35, 70, 35) or Color3.fromRGB(40, 40, 45))
-        b.TextColor3 = Color3.new(1,1,1)
+        b.Size = UDim2.new(1, -6, 0, 30); b.BorderSizePixel = 0; b.Text = (data.isSelf and "[S] " or "") .. data.name
+        b.BackgroundColor3 = (currentSelectionID == i) and Color3.fromRGB(150, 50, 255) or (data.isSelf and Color3.fromRGB(35, 70, 35) or Color3.fromRGB(40, 40, 45))
+        b.TextColor3 = Color3.new(1,1,1); b.LayoutOrder = i
         
         b.MouseButton1Click:Connect(function()
-            currentSelectionID = uniqueID
+            currentSelectionID = i
             Details.Text = data.fullText
             for _, v in pairs(Scroll:GetChildren()) do
                 if v:IsA("TextButton") then
                     local isS = v.Text:find("%[S%]")
-                    v.BackgroundColor3 = (v == b) and Color3.fromRGB(150, 50, 255) or (isS and Color3.fromRGB(35, 70, 35) or Color3.fromRGB(40, 40, 45))
+                    v.BackgroundColor3 = (v.LayoutOrder == i) and Color3.fromRGB(150, 50, 255) or (isS and Color3.fromRGB(35, 70, 35) or Color3.fromRGB(40, 40, 45))
                 end
             end
         end)
     end
 end
 
-task.spawn(function()
-    while task.wait(0.5) do RebuildGUI() end
+task.spawn(function() while task.wait(0.5) do RebuildGUI() end end)
+
+-- ЛОГИКА КОПИРОВАНИЯ С УВЕДОМЛЕНИЕМ
+local function feedback(btn, newText, oldText)
+    btn.Text = newText
+    task.wait(1)
+    btn.Text = oldText
+end
+
+CopyArgs.MouseButton1Click:Connect(function() 
+    setclipboard(Details.Text:match("Args: (.*)\n\nScript") or "")
+    task.spawn(feedback, CopyArgs, "ARGS COPIED!", "COPY ARGS")
+end)
+
+CopyScript.MouseButton1Click:Connect(function() 
+    setclipboard(Details.Text:match("Script: (.*)") or "")
+    task.spawn(feedback, CopyScript, "SCRIPT COPIED!", "COPY SCRIPT")
 end)
 
 -- ПЕРЕХВАТ
@@ -120,44 +125,35 @@ end
 
 local function addLog(rem, args, isSelf)
     local eventPath = getSafePath(rem)
-    
-    -- СТРОГАЯ ФИЛЬТРАЦИЯ ПО ПУТИ
-    if controlMode and not isSelf then
-        if PathFilter[eventPath] then return end
-    end
+    if controlMode and not isSelf and PathFilter[eventPath] then return end
 
     local argStrings = {}
     for _, v in pairs(args) do 
         pcall(function() table.insert(argStrings, (typeof(v) == "Instance" and getSafePath(v) or parseTable(v))) end) 
     end
     local finalArgs = table.concat(argStrings, ", ")
-    
     local fullText = "Path: "..eventPath.."\n\nArgs: "..finalArgs.."\n\nScript: "..eventPath..":FireServer("..finalArgs..")"
     
-    table.insert(MainMemory, {name = tostring(rem.Name), path = eventPath, args = finalArgs, fullText = fullText, isSelf = isSelf})
+    table.insert(MainMemory, {name = tostring(rem.Name), path = eventPath, fullText = fullText, isSelf = isSelf})
     PathFilter[eventPath] = true
 end
 
--- УПРАВЛЕНИЕ
+-- МИНИМИЗАЦИЯ
 MinBtn.MouseButton1Click:Connect(function()
-    ContentFrame.Visible = not ContentFrame.Visible
-    ControlBtn.Visible = ContentFrame.Visible
+    ContentFrame.Visible = not ContentFrame.Visible; ControlBtn.Visible = ContentFrame.Visible
     Main:TweenSize(ContentFrame.Visible and UDim2.new(0, 660, 0, 420) or UDim2.new(0, 240, 0, 35), "Out", "Quad", 0.1, true)
     MinBtn.Text = ContentFrame.Visible and "_" or "+"
-    if ContentFrame.Visible then lastCount = -1; RebuildGUI() end -- Принудительное обновление при открытии
+    if ContentFrame.Visible then lastCount = -1 end -- Форсим обновление при развертывании
 end)
 
 ControlBtn.MouseButton1Click:Connect(function()
     controlMode = not controlMode
     ControlBtn.Text = "CONTROL: " .. (controlMode and "ON" or "OFF")
     ControlBtn.BackgroundColor3 = controlMode and Color3.fromRGB(150, 50, 255) or Color3.fromRGB(80, 80, 85)
-    MainMemory, PathFilter, lastCount = {}, {}, 0
-    Details.Text = "Memory Cleared."; currentSelectionID = nil
+    MainMemory, PathFilter, lastCount, currentSelectionID = {}, {}, 0, nil
+    Details.Text = ""
     for _, v in pairs(Scroll:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
 end)
-
-CopyArgs.MouseButton1Click:Connect(function() setclipboard(Details.Text:match("Args: (.*)\n\nScript") or "") end)
-CopyScript.MouseButton1Click:Connect(function() setclipboard(Details.Text:match("Script: (.*)") or "") end)
 
 local mt = getrawmetatable(game); local old = mt.__namecall; setreadonly(mt, false)
 mt.__namecall = newcclosure(function(self, ...)
