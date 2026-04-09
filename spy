@@ -1,5 +1,4 @@
 -- [[ QUANTUM SPY v4.5 ]] --
--- Bypass Cache: loadstring(game:HttpGet("YOUR_URL?t="..tick()))()
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
