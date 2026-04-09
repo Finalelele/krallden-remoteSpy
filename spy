@@ -125,17 +125,40 @@ end
 
 local function addLog(rem, args, isSelf)
     local eventPath = getSafePath(rem)
-    if controlMode and not isSelf and PathFilter[eventPath] then return end
-
+    local eventName = tostring(rem.Name)
+    
+    -- Подготовка аргументов для текста и для сравнения
     local argStrings = {}
     for _, v in pairs(args) do 
         pcall(function() table.insert(argStrings, (typeof(v) == "Instance" and getSafePath(v) or parseTable(v))) end) 
     end
     local finalArgs = table.concat(argStrings, ", ")
+    
+    -- [[ УМНАЯ ФИЛЬТРАЦИЯ 7.1 ]] --
+    if not isSelf then
+        if controlMode then
+            -- Жестко по пути
+            if PathFilter[eventPath] then return end
+        else
+            -- По имени + аргументам (чтобы не дублировать одинаковый спам)
+            local signature = eventName .. finalArgs
+            if PathFilter[signature] then return end
+            PathFilter[signature] = true -- Помечаем эту комбинацию как "уже есть"
+        end
+    end
+
     local fullText = "Path: "..eventPath.."\n\nArgs: "..finalArgs.."\n\nScript: "..eventPath..":FireServer("..finalArgs..")"
     
-    table.insert(MainMemory, {name = tostring(rem.Name), path = eventPath, fullText = fullText, isSelf = isSelf})
-    PathFilter[eventPath] = true
+    table.insert(MainMemory, {
+        name = eventName, 
+        path = eventPath, 
+        args = finalArgs, 
+        fullText = fullText, 
+        isSelf = isSelf
+    })
+    
+    -- Для CONTROL: ON помечаем путь
+    if controlMode then PathFilter[eventPath] = true end
 end
 
 -- МИНИМИЗАЦИЯ
