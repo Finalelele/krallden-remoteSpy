@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.1 - FIXED UI & ANTI-SPAM ]] --
+-- [[ KRALLDEN SPY v9.2 - FINAL STABLE ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -20,7 +20,6 @@ local currentSelectionGUID, lastCount = nil, 0
 
 local function generateGUID() return tostring(tick()) .. "-" .. tostring(math.random(1, 100000)) end
 
--- ФУНКЦИЯ ОЧИСТКИ
 local function fullClear()
     MainMemory, PathFilter, lastCount, currentSelectionGUID = {}, {}, 0, nil
     BannedPaths, AntiSpamCounts, AntiSpamCooldowns = {}, {}, {}
@@ -40,7 +39,7 @@ Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(2
 
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.1"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
+Title.Text = "KRALLDEN SPY v9.2"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
 
 local MinBtn = Instance.new("TextButton", Header)
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "_"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0
@@ -51,16 +50,13 @@ ControlBtn.Size = UDim2.new(0, 100, 0, 24); ControlBtn.Position = UDim2.new(1, -
 local SelfBtn = Instance.new("TextButton", Header)
 SelfBtn.Size = UDim2.new(0, 80, 0, 24); SelfBtn.Position = UDim2.new(1, -235, 0.5, -12); SelfBtn.BackgroundColor3 = Color3.fromRGB(45, 90, 45); SelfBtn.Text = "SELF: ON"; SelfBtn.TextColor3 = Color3.new(1,1,1); SelfBtn.Font = Enum.Font.SourceSansBold; SelfBtn.TextSize = 11; SelfBtn.ZIndex = 11
 
--- ИСПРАВЛЕННАЯ КНОПКА ANTI-SPAM
 local AntiSpamBtn = Instance.new("TextButton", Header)
-AntiSpamBtn.Size = UDim2.new(0, 100, 0, 24); AntiSpamBtn.Position = UDim2.new(1, -340, 0.5, -12); AntiSpamBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 85)
-AntiSpamBtn.Text = "ANTI-SPAM: OFF"; AntiSpamBtn.TextColor3 = Color3.new(1,1,1); AntiSpamBtn.Font = Enum.Font.SourceSansBold; AntiSpamBtn.TextSize = 11; AntiSpamBtn.ZIndex = 11
-AntiSpamBtn.Visible = false -- По умолчанию скрыта, так как CONTROL: ON
+AntiSpamBtn.Size = UDim2.new(0, 100, 0, 24); AntiSpamBtn.Position = UDim2.new(1, -345, 0.5, -12); AntiSpamBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 85)
+AntiSpamBtn.Text = "ANTI-SPAM: OFF"; AntiSpamBtn.TextColor3 = Color3.new(1,1,1); AntiSpamBtn.Font = Enum.Font.SourceSansBold; AntiSpamBtn.TextSize = 11; AntiSpamBtn.ZIndex = 11; AntiSpamBtn.Visible = false
 
 local ContentFrame = Instance.new("Frame", Main)
 ContentFrame.Name = "ContentFrame"; ContentFrame.Size = UDim2.new(1, 0, 1, -35); ContentFrame.Position = UDim2.new(0, 0, 0, 35); ContentFrame.BackgroundTransparency = 1; ContentFrame.ClipsDescendants = true
 
--- [Здесь остаются твои ScrollingFrame, Details и Parser без изменений...]
 local Scroll = Instance.new("ScrollingFrame", ContentFrame)
 Scroll.Name = "ScrollingFrame"; Scroll.Position = UDim2.new(0, 8, 0, 8); Scroll.Size = UDim2.new(0, 190, 1, -16); Scroll.BackgroundColor3 = Color3.fromRGB(20, 20, 25); Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y; Scroll.BorderSizePixel = 0
 Instance.new("UIListLayout", Scroll).SortOrder = Enum.SortOrder.LayoutOrder
@@ -69,7 +65,7 @@ local Details = Instance.new("TextBox", ContentFrame)
 Details.Name = "Details"; Details.Position = UDim2.new(0, 205, 0, 8); Details.Size = UDim2.new(0, 448, 0.58, 0)
 Details.BackgroundColor3 = Color3.fromRGB(10, 10, 12); Details.TextColor3 = Color3.new(1, 1, 1); Details.MultiLine = true; Details.TextWrapped = true; Details.TextEditable = false; Details.TextXAlignment = 0; Details.TextYAlignment = 0; Details.Font = Enum.Font.Code; Details.TextSize = 12
 
--- ПАРСЕР И ГЕТТЕР ПУТИ (Твои оригинальные)
+-- ПАРСЕР И ЛОГИКА
 local function parseTable(t, depth)
     depth = depth or 0
     if type(t) ~= "table" or depth > 4 then return type(t) == "string" and '"'..t..'"' or tostring(t) end
@@ -95,7 +91,6 @@ local function getSafePath(obj)
     return p ~= "" and "game." .. p:gsub("%.%[", "[") or "game.NilObject"
 end
 
--- LOGIC
 local function addLog(rem, args, isSelf, typeLabel)
     if (typeLabel == "FS" and not spyFS) or (typeLabel == "FC" and not spyFC) or (typeLabel == "IS" and not spyIS) then return end
     local eventPath = getSafePath(rem)
@@ -108,8 +103,7 @@ local function addLog(rem, args, isSelf, typeLabel)
         if BannedPaths[eventPath] then return end
         if PathFilter[sig] then return end
         local now = tick()
-        local lastTime = AntiSpamCooldowns[eventPath] or 0
-        if (now - lastTime) < 0.6 then
+        if (now - (AntiSpamCooldowns[eventPath] or 0)) < 0.6 then
             AntiSpamCounts[eventPath] = (AntiSpamCounts[eventPath] or 0) + 1
             if AntiSpamCounts[eventPath] >= 3 then BannedPaths[eventPath] = true return end
             return 
@@ -125,9 +119,7 @@ local function addLog(rem, args, isSelf, typeLabel)
     local method = (typeLabel == "IS" and "InvokeServer" or (typeLabel == "FC" and "FireClient" or "FireServer"))
     
     table.insert(MainMemory, 1, {
-        guid = generateGUID(),
-        name = tostring(rem.Name), 
-        type = typeLabel, 
+        guid = generateGUID(), name = tostring(rem.Name), type = typeLabel, 
         fullText = string.format("Type: %s\nPath: %s\n\nArgs: %s\n\nScript: %s:%s(%s)", typeLabel, eventPath, finalArgs, eventPath, method, finalArgs), 
         isSelf = isSelf
     })
@@ -144,7 +136,7 @@ mt.__namecall = newcclosure(function(self, ...)
 end)
 setreadonly(mt, true)
 
--- UI BUTTONS (Side & Action)
+-- КНОПКИ
 local function createSideBtn(text, pos, state, color)
     local b = Instance.new("TextButton", ContentFrame)
     b.Size = UDim2.new(0, 150, 0, 35); b.Position = pos; b.BackgroundColor3 = state and color or Color3.fromRGB(40, 40, 45)
@@ -168,7 +160,7 @@ local CopyScript = createActionBtn("COPY SCRIPT", UDim2.new(0, 205, 0.83, 0), Co
 local ClearLog = createActionBtn("CLEAR LOG", UDim2.new(0, 432, 0.68, 0), Color3.fromRGB(80, 80, 85))
 local ExecScript = createActionBtn("EXECUTE", UDim2.new(0, 432, 0.83, 0), Color3.fromRGB(120, 60, 60))
 
--- LOOP
+-- LOOP ОБНОВЛЕНИЯ СПИСКА
 task.spawn(function()
     while task.wait(0.5) do
         if not ContentFrame.Visible or #MainMemory == lastCount then continue end
@@ -189,16 +181,14 @@ task.spawn(function()
     end
 end)
 
--- [ИСПРАВЛЕННЫЕ СОБЫТИЯ]
+-- СОБЫТИЯ
 MinBtn.MouseButton1Click:Connect(function()
     ContentFrame.Visible = not ContentFrame.Visible
     if not ContentFrame.Visible then
-        -- СВОРАЧИВАНИЕ ВЛЕВО (Ширина 300, чтобы текст влез)
         ControlBtn.Visible = false; SelfBtn.Visible = false; AntiSpamBtn.Visible = false
-        Main:TweenSize(UDim2.new(0, 300, 0, 35), "Out", "Quad", 0.15, true)
+        Main:TweenSize(UDim2.new(0, 280, 0, 35), "Out", "Quad", 0.15, true) -- Расширенная шапка
         MinBtn.Text = "+"
     else
-        -- РАЗВОРАЧИВАНИЕ
         Main:TweenSize(UDim2.new(0, 820, 0, 440), "Out", "Quad", 0.15, true, function()
             ControlBtn.Visible = true; SelfBtn.Visible = true; Title.Visible = true
             if not controlMode then AntiSpamBtn.Visible = true end
@@ -212,9 +202,16 @@ ControlBtn.MouseButton1Click:Connect(function()
     ControlBtn.Text = "CONTROL: "..(controlMode and "ON" or "OFF")
     ControlBtn.BackgroundColor3 = controlMode and Color3.fromRGB(150, 50, 255) or Color3.fromRGB(80, 80, 85)
     
-    -- Исправлено: показываем/скрываем кнопку Anti-Spam
+    -- Исправленная логика: сразу включаем антиспам визуально при выключении контроля
     antiSpam = not controlMode
     AntiSpamBtn.Visible = not controlMode
+    if antiSpam then
+        AntiSpamBtn.Text = "ANTI-SPAM: ON"
+        AntiSpamBtn.BackgroundColor3 = Color3.fromRGB(180, 150, 40)
+    else
+        AntiSpamBtn.Text = "ANTI-SPAM: OFF"
+        AntiSpamBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 85)
+    end
 end)
 
 AntiSpamBtn.MouseButton1Click:Connect(function()
@@ -223,7 +220,6 @@ AntiSpamBtn.MouseButton1Click:Connect(function()
     AntiSpamBtn.BackgroundColor3 = antiSpam and Color3.fromRGB(180, 150, 40) or Color3.fromRGB(80, 80, 85)
 end)
 
--- Остальные клики
 SelfBtn.MouseButton1Click:Connect(function() selfMode = not selfMode; SelfBtn.Text = "SELF: "..(selfMode and "ON" or "OFF"); SelfBtn.BackgroundColor3 = selfMode and Color3.fromRGB(45, 90, 45) or Color3.fromRGB(150, 50, 50) end)
 ClearLog.MouseButton1Click:Connect(fullClear)
 BtnFS.MouseButton1Click:Connect(function() spyFS = not spyFS; BtnFS.Text = "FS SPY: "..(spyFS and "ON" or "OFF"); BtnFS.BackgroundColor3 = spyFS and Color3.fromRGB(150, 50, 255) or Color3.fromRGB(40, 40, 45) end)
