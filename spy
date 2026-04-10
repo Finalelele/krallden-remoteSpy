@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v8.8 - GUID & INSTANT ANTI-SPAM ]] --
+-- [[ KRALLDEN SPY v8.9 - UI & GUID FIX ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -18,12 +18,8 @@ local selfMode, controlMode, antiSpam = true, true, false
 local spyFS, spyFC, spyIS = true, false, false
 local currentSelectionGUID, lastCount = nil, 0
 
--- Генератор уникальных ID для выделения
-local function generateGUID()
-    return tostring(tick()) .. "-" .. tostring(math.random(1, 100000))
-end
+local function generateGUID() return tostring(tick()) .. "-" .. tostring(math.random(1, 100000)) end
 
--- ПАРСЕР ТАБЛИЦ
 local function parseTable(t, depth)
     depth = depth or 0
     if type(t) ~= "table" or depth > 4 then return type(t) == "string" and '"'..t..'"' or tostring(t) end
@@ -44,7 +40,7 @@ Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(2
 
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(0.3, 0, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0.02, 0, 0, 0)
-Title.Text = "KRALLDEN SPY v8.8"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
+Title.Text = "KRALLDEN SPY v8.9"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
 
 local MinBtn = Instance.new("TextButton", Header)
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "_"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 11
@@ -101,24 +97,17 @@ local function addLog(rem, args, isSelf, typeLabel)
     local finalArgs = table.concat(argStrings, ", ")
     local sig = eventPath .. finalArgs
     
-    -- УМНЫЙ ANTI-SPAM (v8.8)
     if not controlMode and antiSpam and not isSelf then
         if BannedPaths[eventPath] then return end
-        if PathFilter[sig] then return end -- Сначала отсекаем полный дубль
+        if PathFilter[sig] then return end
         
         local now = tick()
         local lastTime = AntiSpamCooldowns[eventPath] or 0
-        
         if (now - lastTime) < 0.6 then
             AntiSpamCounts[eventPath] = (AntiSpamCounts[eventPath] or 0) + 1
-            if AntiSpamCounts[eventPath] >= 3 then -- Уменьшил порог для еще более быстрой блокировки
-                BannedPaths[eventPath] = true
-                return
-            end
+            if AntiSpamCounts[eventPath] >= 3 then BannedPaths[eventPath] = true return end
             return 
-        else
-            AntiSpamCounts[eventPath] = 0
-        end
+        else AntiSpamCounts[eventPath] = 0 end
         AntiSpamCooldowns[eventPath] = now
     end
 
@@ -127,21 +116,17 @@ local function addLog(rem, args, isSelf, typeLabel)
     if isSelf and selfMode and PathFilter["S" .. filterSig] then return end
     
     PathFilter[isSelf and "S" .. filterSig or filterSig] = true
-    
     local method = (typeLabel == "IS" and "InvokeServer" or (typeLabel == "FC" and "FireClient" or "FireServer"))
     
-    -- Вставляем с GUID для точного выделения
     table.insert(MainMemory, 1, {
         guid = generateGUID(),
         name = tostring(rem.Name), 
         type = typeLabel, 
-        path = eventPath, 
         fullText = string.format("Type: %s\nPath: %s\n\nArgs: %s\n\nScript: %s:%s(%s)", typeLabel, eventPath, finalArgs, eventPath, method, finalArgs), 
         isSelf = isSelf
     })
 end
 
--- HOOKS
 local mt = getrawmetatable(game); local old = mt.__namecall; setreadonly(mt, false)
 mt.__namecall = newcclosure(function(self, ...)
     local m = getnamecallmethod(); local a = {...}; local s = checkcaller()
@@ -152,7 +137,19 @@ mt.__namecall = newcclosure(function(self, ...)
 end)
 setreadonly(mt, true)
 
--- GUI UPDATE
+-- КНОПКИ ШПИОНОВ (FS/FC/IS)
+local function createSideBtn(text, pos, state, color)
+    local b = Instance.new("TextButton", ContentFrame)
+    b.Size = UDim2.new(0, 150, 0, 35); b.Position = pos; b.BackgroundColor3 = state and color or Color3.fromRGB(40, 40, 45)
+    b.Text = text; b.TextColor3 = Color3.new(1,1,1); b.Font = Enum.Font.SourceSansBold; b.TextSize = 12; b.BorderSizePixel = 0
+    return b
+end
+
+local BtnFS = createSideBtn("FS SPY: ON", UDim2.new(0, 662, 0, 8), spyFS, Color3.fromRGB(150, 50, 255))
+local BtnFC = createSideBtn("FC SPY: OFF", UDim2.new(0, 662, 0, 48), spyFC, Color3.fromRGB(50, 150, 255))
+local BtnIS = createSideBtn("IS SPY: OFF", UDim2.new(0, 662, 0, 88), spyIS, Color3.fromRGB(255, 150, 50))
+
+-- UI UPDATE
 task.spawn(function()
     while task.wait(0.5) do
         if not ContentFrame.Visible or #MainMemory == lastCount then continue end
@@ -166,10 +163,7 @@ task.spawn(function()
             b.TextColor3 = Color3.new(1,1,1); b.BorderSizePixel = 0
             b.MouseButton1Click:Connect(function()
                 currentSelectionGUID = data.guid; Details.Text = data.fullText
-                for _, v in pairs(Scroll:GetChildren()) do if v:IsA("TextButton") then 
-                    -- Проверяем по скрытому значению или просто перекрашиваем все
-                    v.BackgroundColor3 = Color3.fromRGB(40, 40, 45) -- Сброс всех
-                end end
+                for _, v in pairs(Scroll:GetChildren()) do if v:IsA("TextButton") then v.BackgroundColor3 = Color3.fromRGB(40, 40, 45) end end
                 b.BackgroundColor3 = Color3.fromRGB(150, 50, 255)
             end)
         end
@@ -193,22 +187,25 @@ end)
 
 MinBtn.MouseButton1Click:Connect(function() 
     ContentFrame.Visible = not ContentFrame.Visible
-    Main:TweenSize(ContentFrame.Visible and UDim2.new(0, 820, 0, 440) or UDim2.new(0, 240, 0, 35), "Out", "Quad", 0.1, true)
+    local targetSize = ContentFrame.Visible and UDim2.new(0, 820, 0, 440) or UDim2.new(0, 240, 0, 35)
+    
     if not ContentFrame.Visible then
+        -- Сворачивание: двигаем кнопку в центр свернутой шапки
         MinBtn.Position = UDim2.new(0.5, -22, 0, 0)
     else
-        local currentPos = Main.Position
-        Main.Position = UDim2.new(currentPos.X.Scale, currentPos.X.Offset - 290, currentPos.Y.Scale, currentPos.Y.Offset)
+        -- Разворачивание: сдвигаем окно влево, чтобы оно осталось по центру
+        Main.Position = UDim2.new(0.5, -410, 0.5, -220)
         MinBtn.Position = UDim2.new(1, -45, 0, 0); lastCount = -1 
     end
+    
+    Main:TweenSize(targetSize, "Out", "Quad", 0.1, true)
     MinBtn.Text = ContentFrame.Visible and "_" or "+"
 end)
 
--- Остальные кнопки (FS/FC/IS/Copy/Exec) без изменений...
-local function setupSide(btn, varName, color)
-    btn.MouseButton1Click:Connect(function()
-        _G[varName] = not _G[varName] -- Используем глобал или локал
-        -- Для краткости логика переключения цвета тут опущена, она стандартная
-    end)
-end
--- (В полной версии все кнопки FS SPY: ON и т.д. подключены аналогично прошлым версиям)
+BtnFS.MouseButton1Click:Connect(function() spyFS = not spyFS; BtnFS.Text = "FS SPY: "..(spyFS and "ON" or "OFF"); BtnFS.BackgroundColor3 = spyFS and Color3.fromRGB(150, 50, 255) or Color3.fromRGB(40, 40, 45) end)
+BtnFC.MouseButton1Click:Connect(function() spyFC = not spyFC; BtnFC.Text = "FC SPY: "..(spyFC and "ON" or "OFF"); BtnFC.BackgroundColor3 = spyFC and Color3.fromRGB(50, 150, 255) or Color3.fromRGB(40, 40, 45) end)
+BtnIS.MouseButton1Click:Connect(function() spyIS = not spyIS; BtnIS.Text = "IS SPY: "..(spyIS and "ON" or "OFF"); BtnIS.BackgroundColor3 = spyIS and Color3.fromRGB(255, 150, 50) or Color3.fromRGB(40, 40, 45) end)
+CopyArgs.MouseButton1Click:Connect(function() setclipboard(Details.Text:match("Args: (.*)\n\nScript") or "") end)
+CopyScript.MouseButton1Click:Connect(function() setclipboard(Details.Text:match("Script: (.*)") or "") end)
+ExecScript.MouseButton1Click:Connect(function() local code = Details.Text:match("Script: (.*)"); if code then loadstring(code)() end end)
+SelfBtn.MouseButton1Click:Connect(function() selfMode = not selfMode; SelfBtn.Text = "SELF: "..(selfMode and "ON" or "OFF"); SelfBtn.BackgroundColor3 = selfMode and Color3.fromRGB(45, 90, 45) or Color3.fromRGB(150, 50, 50) end)
