@@ -102,24 +102,28 @@ local function addLog(rem, args, isSelf, typeLabel)
     local finalArgs = table.concat(argStrings, ", ")
     local sig = eventPath .. finalArgs -- Путь + Аргументы
     
-    -- --- СТРОГАЯ ЛОГИКА ФИЛЬТРАЦИИ ---
+    -- --- СТРОГАЯ ЛОГИКА ФИЛЬТРАЦИИ (v9.3 FIXED) ---
     if isSelf then
-        -- Фильтр для ТВОИХ вызовов (Инжектор/Скрипты)
+        -- Фильтр для ТВОИХ вызовов
         if selfMode then
-            -- Если SELF: ON -> Блокируем по ПУТИ
             if PathFilter["MY_PATH_" .. eventPath] then return end
             PathFilter["MY_PATH_" .. eventPath] = true
         else
-            -- Если SELF: OFF -> Блокируем по ПУТИ + АРГУМЕНТАМ
             if PathFilter["MY_SIG_" .. sig] then return end
             PathFilter["MY_SIG_" .. sig] = true
         end
     else
-        -- Фильтр для ИГРОВЫХ вызовов (Сервер/Другие скрипты)
-        -- Всегда блокируем дубликаты (Путь + Аргументы), чтобы не спамило
+        -- Фильтр для ИГРОВЫХ вызовов
+        -- 1. Если включен CONTROL, блокируем всё по ПУТИ после 1-го раза
+        if controlMode then
+            if PathFilter["GAME_PATH_" .. eventPath] then return end
+            PathFilter["GAME_PATH_" .. eventPath] = true
+        end
+
+        -- 2. Всегда блокируем полные дубликаты (Путь + Аргументы)
         if PathFilter["GAME_SIG_" .. sig] then return end
         
-        -- Твоя старая проверка Анти-спама для CONTROL режима
+        -- 3. Твоя проверка Анти-спама (только когда CONTROL выключен)
         if not controlMode and antiSpam then
             if BannedPaths[eventPath] then return end
             local now = tick()
@@ -132,7 +136,6 @@ local function addLog(rem, args, isSelf, typeLabel)
         end
         PathFilter["GAME_SIG_" .. sig] = true
     end
-    -- ---------------------------------
 
     local method = (typeLabel == "IS" and "InvokeServer" or (typeLabel == "FC" and "FireClient" or "FireServer"))
     local logData = {
