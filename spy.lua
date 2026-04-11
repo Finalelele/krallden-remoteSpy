@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.3.0 - FULL SOURCE - BUGFIXES & DELETE UPDATE ]] --
+-- [[ KRALLDEN SPY v9.3.1 - FULL SOURCE - SMART DELETE SYNC ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -23,7 +23,6 @@ local function generateGUID() return tostring(tick()) .. "-" .. tostring(math.ra
 
 local RedListScroll, Scroll, Details, ContentFrame
 
--- Исправленный Feedback с защитой от залипания
 local activeFeedbacks = {}
 local function feedback(button, tempText)
     if activeFeedbacks[button] then return end
@@ -89,7 +88,7 @@ Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(2
 
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.3.0"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
+Title.Text = "KRALLDEN SPY v9.3.1"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
 
 local MinBtn = Instance.new("TextButton", Header)
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "_"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0
@@ -197,7 +196,7 @@ local function addLog(rem, args, isSelf, typeLabel)
         AntiSpamCooldowns[eventPath] = tick()
     end
 
-    local data = { guid = generateGUID(), name = tostring(rem.Name), type = typeLabel, isSelf = isSelf, fullText = logDetails }
+    local data = { guid = generateGUID(), name = tostring(rem.Name), type = typeLabel, isSelf = isSelf, fullText = logDetails, path = eventPath, argsStr = finalArgsStr }
     table.insert(MainMemory, 1, data)
 end
 
@@ -219,21 +218,47 @@ ControlBtn.MouseButton1Click:Connect(function()
     AntiSpamBtn.Visible = not controlMode; BlockBtn.Visible = not controlMode
 end)
 
--- DELETE SINGLE BUTTON
+-- SMART DELETE SINGLE BUTTON
 DelBtn.MouseButton1Click:Connect(function()
     if currentSelectionGUID then
-        local found = false
+        local targetData = nil
         local nM = {}
         for _, m in ipairs(MainMemory) do
             if m.guid == currentSelectionGUID then
-                found = true
+                targetData = m
             else
                 table.insert(nM, m)
             end
         end
-        if found then
+        
+        if targetData then
             MainMemory = nM
-            lastCount = -1 -- Force refresh
+            
+            -- Проверка: остались ли еще такие же пути/аргументы в логе?
+            local pathStillExists = false
+            local argsStillExists = false
+            
+            for _, m in ipairs(MainMemory) do
+                if m.path == targetData.path and m.isSelf == targetData.isSelf then
+                    pathStillExists = true
+                    if m.argsStr == targetData.argsStr then
+                        argsStillExists = true
+                    end
+                end
+            end
+            
+            -- Если это была последняя кнопка с таким путем/аргументами, убираем из фильтра
+            if targetData.isSelf then
+                if not pathStillExists then PathFilter["S_PATH_" .. targetData.path] = nil end
+                if not argsStillExists then PathFilter["S_ARGS_" .. targetData.path .. "|" .. targetData.argsStr] = nil end
+            else
+                local cKeyP = "C_P_" .. targetData.path
+                local cKeyA = "C_A_" .. targetData.path .. "|" .. targetData.argsStr
+                if not pathStillExists then PathFilter[cKeyP] = nil end
+                if not argsStillExists then PathFilter[cKeyA] = nil end
+            end
+
+            lastCount = -1 
             currentSelectionGUID = nil
             Details.Text = ""
             feedback(DelBtn, "DELETED")
@@ -248,7 +273,6 @@ BlockBtn.MouseButton1Click:Connect(function()
                 local p = d.fullText:match("Path: (.-)\n")
                 if p then
                     ManualBannedPaths[p] = {guid = d.guid, details = "MANUAL BANNED:\n\n" .. d.fullText}
-                    -- Удаляем только чужие логи этого ивента (не self)
                     local nM = {}
                     for _, m in ipairs(MainMemory) do 
                         local isTarget = m.fullText:match("Path: " .. p:gsub("[%[%]%(%)%.%+%-%*%?%^%$%%]", "%%%1"))
