@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.2.9 - FULL SOURCE - UNIFIED DUAL-CHECK FILTER ]] --
+-- [[ KRALLDEN SPY v9.3.0 - FULL SOURCE - BUGFIXES & DELETE UPDATE ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -23,11 +23,18 @@ local function generateGUID() return tostring(tick()) .. "-" .. tostring(math.ra
 
 local RedListScroll, Scroll, Details, ContentFrame
 
+-- Исправленный Feedback с защитой от залипания
+local activeFeedbacks = {}
 local function feedback(button, tempText)
+    if activeFeedbacks[button] then return end
+    activeFeedbacks[button] = true
     local oldText = button.Text
     button.Text = tempText
     task.delay(1, function()
-        if button and button.Parent then button.Text = oldText end
+        if button and button.Parent then 
+            button.Text = oldText 
+            activeFeedbacks[button] = nil
+        end
     end)
 end
 
@@ -82,23 +89,23 @@ Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(2
 
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.2.9"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
+Title.Text = "KRALLDEN SPY v9.3.0"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
 
 local MinBtn = Instance.new("TextButton", Header)
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "_"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0
 
-local function createHeaderBtn(text, offset, color)
+local function createHeaderBtn(text, offset, color, sizeX)
     local b = Instance.new("TextButton", Header)
-    b.Size = UDim2.new(0, 100, 0, 24); b.Position = UDim2.new(1, offset, 0.5, -12); b.BackgroundColor3 = color; b.Text = text; b.TextColor3 = Color3.new(1,1,1); b.Font = Enum.Font.SourceSansBold; b.TextSize = 11; b.ZIndex = 11; b.BorderSizePixel = 0
+    b.Size = UDim2.new(0, sizeX or 100, 0, 24); b.Position = UDim2.new(1, offset, 0.5, -12); b.BackgroundColor3 = color; b.Text = text; b.TextColor3 = Color3.new(1,1,1); b.Font = Enum.Font.SourceSansBold; b.TextSize = 11; b.ZIndex = 11; b.BorderSizePixel = 0
     return b
 end
 
 local ControlBtn = createHeaderBtn("CONTROL: ON", -150, Color3.fromRGB(150, 50, 255))
-local SelfBtn = createHeaderBtn("SELF: ON", -235, Color3.fromRGB(45, 90, 45))
-SelfBtn.Size = UDim2.new(0, 80, 0, 24)
-local AntiSpamBtn = createHeaderBtn("ANTI-SPAM: ON", -345, Color3.fromRGB(180, 150, 40))
+local SelfBtn = createHeaderBtn("SELF: ON", -235, Color3.fromRGB(45, 90, 45), 80)
+local DelBtn = createHeaderBtn("DEL BTN", -310, Color3.fromRGB(200, 100, 0), 70)
+local AntiSpamBtn = createHeaderBtn("ANTI-SPAM: ON", -420, Color3.fromRGB(180, 150, 40))
 AntiSpamBtn.Visible = false
-local BlockBtn = createHeaderBtn("BLOCK EVENT", -455, Color3.fromRGB(150, 50, 50))
+local BlockBtn = createHeaderBtn("BLOCK EVENT", -530, Color3.fromRGB(150, 50, 50))
 BlockBtn.Visible = false
 
 ContentFrame = Instance.new("Frame", Main)
@@ -160,22 +167,15 @@ local function addLog(rem, args, isSelf, typeLabel)
     for i, v in ipairs(args) do table.insert(argList, parseValue(v)) end
     local finalArgsStr = table.concat(argList, ", ")
     
-    -- [[ УНИФИЦИРОВАННАЯ ПРОВЕРКА SELF ]]
+    -- DUAL-CHECK SELF FILTER
     if isSelf then
         local keyPathOnly = "S_PATH_" .. eventPath
         local keyPathArgs = "S_ARGS_" .. eventPath .. "|" .. finalArgsStr
-        
-        -- Если режим ON: проверяем только по пути
         if selfMode and PathFilter[keyPathOnly] then return end
-        
-        -- Если режим OFF: проверяем по пути + аргументам
         if not selfMode and PathFilter[keyPathArgs] then return end
-        
-        -- Если прошли проверки, записываем оба ключа для синхронизации
         PathFilter[keyPathOnly] = true
         PathFilter[keyPathArgs] = true
     else
-        -- Обычная фильтрация для чужих вызовов
         local otherKey = (controlMode and "C_P_" or "C_A_") .. eventPath .. (controlMode and "" or "|" .. finalArgsStr)
         if PathFilter[otherKey] then return end
         PathFilter[otherKey] = true
@@ -219,6 +219,28 @@ ControlBtn.MouseButton1Click:Connect(function()
     AntiSpamBtn.Visible = not controlMode; BlockBtn.Visible = not controlMode
 end)
 
+-- DELETE SINGLE BUTTON
+DelBtn.MouseButton1Click:Connect(function()
+    if currentSelectionGUID then
+        local found = false
+        local nM = {}
+        for _, m in ipairs(MainMemory) do
+            if m.guid == currentSelectionGUID then
+                found = true
+            else
+                table.insert(nM, m)
+            end
+        end
+        if found then
+            MainMemory = nM
+            lastCount = -1 -- Force refresh
+            currentSelectionGUID = nil
+            Details.Text = ""
+            feedback(DelBtn, "DELETED")
+        end
+    end
+end)
+
 BlockBtn.MouseButton1Click:Connect(function()
     if currentSelectionGUID then
         for i, d in ipairs(MainMemory) do
@@ -226,8 +248,16 @@ BlockBtn.MouseButton1Click:Connect(function()
                 local p = d.fullText:match("Path: (.-)\n")
                 if p then
                     ManualBannedPaths[p] = {guid = d.guid, details = "MANUAL BANNED:\n\n" .. d.fullText}
-                    local nM = {}; for _, m in ipairs(MainMemory) do if not m.fullText:match("Path: " .. p:gsub("[%[%]%(%)%.%+%-%*%?%^%$%%]", "%%%1")) then table.insert(nM, m) end end
+                    -- Удаляем только чужие логи этого ивента (не self)
+                    local nM = {}
+                    for _, m in ipairs(MainMemory) do 
+                        local isTarget = m.fullText:match("Path: " .. p:gsub("[%[%]%(%)%.%+%-%*%?%^%$%%]", "%%%1"))
+                        if not (isTarget and not m.isSelf) then 
+                            table.insert(nM, m) 
+                        end 
+                    end
                     MainMemory = nM; lastCount = -1; currentSelectionGUID = nil; updateRedListUI(); Details.Text = "Banned."
+                    feedback(BlockBtn, "BANNED")
                 end; break
             end
         end
@@ -238,11 +268,11 @@ MinBtn.MouseButton1Click:Connect(function()
     isMin = not isMin
     local curX, curY = Main.AbsolutePosition.X + Main.AbsoluteSize.X, Main.AbsolutePosition.Y
     if isMin then
-        ContentFrame.Visible = false; ControlBtn.Visible = false; SelfBtn.Visible = false; AntiSpamBtn.Visible = false; BlockBtn.Visible = false
+        ContentFrame.Visible = false; ControlBtn.Visible = false; SelfBtn.Visible = false; AntiSpamBtn.Visible = false; BlockBtn.Visible = false; DelBtn.Visible = false
         Main:TweenSizeAndPosition(UDim2.new(0, 250, 0, 35), UDim2.new(0, curX - 250, 0, curY), "Out", "Quad", 0.15, true); MinBtn.Text = "+"
     else
         Main:TweenSizeAndPosition(UDim2.new(0, 820, 0, 440), UDim2.new(0, curX - 820, 0, curY), "Out", "Quad", 0.15, true, function()
-            ContentFrame.Visible = true; ControlBtn.Visible = true; SelfBtn.Visible = true; if not controlMode then AntiSpamBtn.Visible = true; BlockBtn.Visible = true end
+            ContentFrame.Visible = true; ControlBtn.Visible = true; SelfBtn.Visible = true; DelBtn.Visible = true; if not controlMode then AntiSpamBtn.Visible = true; BlockBtn.Visible = true end
         end); MinBtn.Text = "_"; lastCount = -1
     end
 end)
