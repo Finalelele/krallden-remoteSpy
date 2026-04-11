@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.1.8 - FULL SOURCE - SMART SELF FILTER ]] --
+-- [[ KRALLDEN SPY v9.1.9 - FULL SOURCE - CONTROL & SELF LOGIC SPLIT ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -74,7 +74,7 @@ Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(2
 
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.1.8"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
+Title.Text = "KRALLDEN SPY v9.1.9"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
 
 local MinBtn = Instance.new("TextButton", Header)
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "_"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0
@@ -149,14 +149,21 @@ local function addLog(rem, args, isSelf, typeLabel)
     for i, v in ipairs(args) do table.insert(argList, parseValue(v)) end
     local finalArgsStr = table.concat(argList, ", ")
     
-    -- [[ ЛОГИКА ФИЛЬТРАЦИИ SELF / CONTROL ]] --
-    local filterKey = isSelf and eventPath or (eventPath .. "|" .. finalArgsStr)
-    if controlMode and PathFilter[filterKey] then return end
+    -- [[ УМНАЯ ФИЛЬТРАЦИЯ ]] --
+    local filterKey = ""
+    if isSelf then
+        filterKey = "SELF_" .. (selfMode and eventPath or (eventPath .. "|" .. finalArgsStr))
+    else
+        filterKey = "CTRL_" .. (controlMode and eventPath or (eventPath .. "|" .. finalArgsStr))
+    end
+
+    if PathFilter[filterKey] then return end
 
     local methodName = (typeLabel == "IS" and "InvokeServer" or "FireServer")
     local logDetails = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, finalArgsStr, eventPath, methodName, finalArgsStr)
 
-    if not controlMode and antiSpam then
+    -- Анти-спам работает ТОЛЬКО для чужих ивентов
+    if not isSelf and not controlMode and antiSpam then
         if (tick() - (AntiSpamCooldowns[eventPath] or 0)) < 0.4 then
             AntiSpamCounts[eventPath] = (AntiSpamCounts[eventPath] or 0) + 1
             if AntiSpamCounts[eventPath] >= 4 then
@@ -175,8 +182,8 @@ local function addLog(rem, args, isSelf, typeLabel)
 
     local data = { guid = generateGUID(), name = tostring(rem.Name), type = typeLabel, isSelf = isSelf, fullText = logDetails }
     
-    -- Активируем бан по пути для Self или путь+аргументы для обычных
-    if controlMode then PathFilter[filterKey] = true end
+    -- Активируем фильтр
+    PathFilter[filterKey] = true
     
     table.insert(MainMemory, 1, data)
 end
@@ -202,13 +209,16 @@ end)
 BlockBtn.MouseButton1Click:Connect(function()
     if currentSelectionGUID then
         for i, d in ipairs(MainMemory) do
-            if d.guid == currentSelectionGUID then
+            -- Блокировка работает только для чужих ивентов (isSelf == false)
+            if d.guid == currentSelectionGUID and not d.isSelf then
                 local p = d.fullText:match("Path: (.-)\n")
                 if p then
                     ManualBannedPaths[p] = {guid = d.guid, details = "MANUAL BANNED:\n\n" .. d.fullText}
                     local nM = {}; for _, m in ipairs(MainMemory) do if not m.fullText:match("Path: " .. p:gsub("[%[%]%(%)%.%+%-%*%?%^%$%%]", "%%%1")) then table.insert(nM, m) end end
                     MainMemory = nM; lastCount = -1; currentSelectionGUID = nil; updateRedListUI(); Details.Text = "Banned."
                 end; break
+            elseif d.guid == currentSelectionGUID and d.isSelf then
+                Details.Text = "Cannot block Self-Events."
             end
         end
     end
@@ -271,7 +281,8 @@ createBotBtn("EXECUTE", UDim2.new(0, 432, 0.83, 0), Color3.fromRGB(120, 60, 60))
 end)
 
 SelfBtn.MouseButton1Click:Connect(function() 
-    selfMode = not selfMode; SelfBtn.Text = "SELF: "..(selfMode and "ON" or "OFF")
+    selfMode = not selfMode; fullClear() -- Очистка для корректного переключения режима
+    SelfBtn.Text = "SELF: "..(selfMode and "ON" or "OFF")
     SelfBtn.BackgroundColor3 = selfMode and Color3.fromRGB(45, 90, 45) or Color3.fromRGB(150, 50, 50) 
 end)
 
