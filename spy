@@ -17,9 +17,11 @@ local selfMode, controlMode, antiSpam = true, true, false
 local spyFS, spyFC, spyIS = true, false, false
 local currentSelectionGUID, lastCount, isMin = nil, 0, false
 
--- [[ ADVANCED SERIALIZER ]] --
-local function serialize(val)
+-- [[ IMPROVED SERIALIZER (Integrated parseTable) ]] --
+local function serialize(val, depth)
+    depth = depth or 0
     local t = typeof(val)
+    
     if t == "string" then return '"' .. val .. '"'
     elseif t == "number" or t == "boolean" then return tostring(val)
     elseif t == "Vector3" then return "Vector3.new(" .. tostring(val) .. ")"
@@ -30,11 +32,13 @@ local function serialize(val)
         local p = ""; pcall(function() local o=val; while o and o~=game do local n=o.Name; p=(n:match("[%s%W]") and '["'..n..'"]' or n)..(p~="" and "."..p or ""); o=o.Parent end end)
         return p ~= "" and "game." .. p:gsub("%.%[", "[") or "nil"
     elseif t == "table" then
+        if depth > 4 then return "{...}" end
         local s = "{"; local count = 0
         for k, v in pairs(val) do
             count = count + 1
+            if count > 15 then s = s .. "... " break end
             local key = type(k) == "string" and '["'..k..'"]' or "["..tostring(k).."]"
-            s = s .. key .. " = " .. serialize(v) .. ", "
+            s = s .. key .. " = " .. serialize(v, depth + 1) .. ", "
         end
         return count > 0 and s:sub(1, #s-2) .. "}" or "{}"
     end
@@ -60,13 +64,26 @@ Instance.new("UIListLayout", Scroll).SortOrder = Enum.SortOrder.LayoutOrder
 local Details = Instance.new("TextBox", ContentFrame)
 Details.Position = UDim2.new(0, 205, 0, 8); Details.Size = UDim2.new(0, 448, 0, 255); Details.BackgroundColor3 = Color3.fromRGB(10, 10, 12); Details.TextColor3 = Color3.new(1, 1, 1); Details.MultiLine = true; Details.TextEditable = false; Details.Font = Enum.Font.Code; Details.TextSize = 12; Details.TextXAlignment = 0; Details.TextYAlignment = 0; Details.ClearTextOnFocus = false; Details.TextWrapped = true
 
--- BLOCK LIST SECTION
 local BlockListLabel = Instance.new("TextLabel", ContentFrame)
 BlockListLabel.Size = UDim2.new(0, 150, 0, 20); BlockListLabel.Position = UDim2.new(0, 662, 0, 125); BlockListLabel.BackgroundTransparency = 1; BlockListLabel.Text = "BLOCK LIST"; BlockListLabel.TextColor3 = Color3.fromRGB(200, 50, 50); BlockListLabel.Font = Enum.Font.SourceSansBold; BlockListLabel.TextSize = 14
 
 local RedListScroll = Instance.new("ScrollingFrame", ContentFrame)
 RedListScroll.Position = UDim2.new(0, 662, 0, 145); RedListScroll.Size = UDim2.new(0, 150, 0, 250); RedListScroll.BackgroundColor3 = Color3.fromRGB(30, 15, 15); RedListScroll.BorderSizePixel = 0; RedListScroll.ScrollBarThickness = 2; RedListScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 Instance.new("UIListLayout", RedListScroll).SortOrder = Enum.SortOrder.LayoutOrder
+
+-- [[ UI BUTTONS & INTERACTION ]] --
+-- Исправленная логика расположения кнопок (от заголовка влево)
+local function createHeaderBtn(text, startX, color)
+    local b = Instance.new("TextButton", Header); b.Size = UDim2.new(0, 95, 0, 24); b.Position = UDim2.new(0, startX, 0.5, -12); b.BackgroundColor3 = color; b.Text = text; b.TextColor3 = Color3.new(1,1,1); b.Font = Enum.Font.SourceSansBold; b.TextSize = 10; b.ZIndex = 11; b.BorderSizePixel = 0; return b
+end
+
+-- Кнопки теперь идут по порядку слева направо после заголовка
+local BlockBtn = createHeaderBtn("BLOCK EVENT", 180, Color3.fromRGB(150, 50, 50)); BlockBtn.Visible = false
+local AntiSpamBtn = createHeaderBtn("ANTI-SPAM: OFF", 280, Color3.fromRGB(180, 150, 40)); AntiSpamBtn.Visible = false
+local SelfBtn = createHeaderBtn("SELF: ON", 380, Color3.fromRGB(45, 90, 45))
+local ControlBtn = createHeaderBtn("CONTROL: ON", 480, Color3.fromRGB(150, 50, 255))
+
+local MinBtn = Instance.new("TextButton", Header); MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "_"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0
 
 -- [[ FUNCTIONS ]] --
 local function updateRedListUI()
@@ -89,7 +106,7 @@ local function addLog(rem, args, isSelf, typeLabel)
     if controlMode and PathFilter[eventPath] then return end 
 
     local argStrings = {}
-    for _, v in pairs(args) do table.insert(argStrings, serialize(v)) end
+    for i, v in pairs(args) do table.insert(argStrings, serialize(v)) end
     local finalArgs = table.concat(argStrings, ", ")
     local logDetails = string.format("Type: %s\nPath: %s\n\nArgs: %s\n\nScript: %s:%s(%s)", typeLabel, eventPath, finalArgs, eventPath, (typeLabel == "IS" and "InvokeServer" or "FireServer"), finalArgs)
 
@@ -123,17 +140,7 @@ mt.__namecall = newcclosure(function(self, ...)
     return old(self, ...)
 end); setreadonly(mt, true)
 
--- [[ UI BUTTONS & INTERACTION ]] --
-local function createHeaderBtn(text, offset, color)
-    local b = Instance.new("TextButton", Header); b.Size = UDim2.new(0, 100, 0, 24); b.Position = UDim2.new(1, offset, 0.5, -12); b.BackgroundColor3 = color; b.Text = text; b.TextColor3 = Color3.new(1,1,1); b.Font = Enum.Font.SourceSansBold; b.TextSize = 11; b.ZIndex = 11; b.BorderSizePixel = 0; return b
-end
-
-local ControlBtn = createHeaderBtn("CONTROL: ON", -150, Color3.fromRGB(150, 50, 255))
-local SelfBtn = createHeaderBtn("SELF: ON", -235, Color3.fromRGB(45, 90, 45))
-local AntiSpamBtn = createHeaderBtn("ANTI-SPAM: OFF", -345, Color3.fromRGB(180, 150, 40)); AntiSpamBtn.Visible = false
-local BlockBtn = createHeaderBtn("BLOCK EVENT", -455, Color3.fromRGB(150, 50, 50)); BlockBtn.Visible = false
-local MinBtn = Instance.new("TextButton", Header); MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "_"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0
-
+-- [[ UI INTERACTION ]] --
 local function createBotBtn(text, pos, color, feedback)
     local b = Instance.new("TextButton", ContentFrame); b.Size = UDim2.new(0, 220, 0, 58); b.Position = pos; b.BackgroundColor3 = color; b.Text = text; b.TextColor3 = Color3.new(1,1,1); b.Font = Enum.Font.SourceSansBold; b.TextSize = 14; b.BorderSizePixel = 0
     b.MouseButton1Click:Connect(function() b.Text = feedback; task.delay(1, function() if b then b.Text = text end end) end); return b
