@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.3.1 - FULL SOURCE - SMART DELETE SYNC ]] --
+-- [[ KRALLDEN SPY v9.3.2 - FINAL UNIFIED EDITION ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -60,6 +60,7 @@ local function updateRedListUI()
         local b = Instance.new("TextButton", RedListScroll)
         b.Size = UDim2.new(1, -6, 0, 25)
         b:SetAttribute("GUID", data.guid)
+        b:SetAttribute("Path", path)
         b.BackgroundColor3 = (currentSelectionGUID == data.guid) and Color3.fromRGB(100, 50, 200) or Color3.fromRGB(100, 35, 35)
         b.TextColor3 = Color3.new(1,1,1); b.Font = Enum.Font.SourceSansBold; b.TextSize = 10; b.BorderSizePixel = 0
         b.Text = " [X] " .. (path:match("[^%.%[%]]+$") or path)
@@ -88,7 +89,7 @@ Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(2
 
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.3.1"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
+Title.Text = "KRALLDEN SPY v9.3.2"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
 
 local MinBtn = Instance.new("TextButton", Header)
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "_"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0
@@ -189,7 +190,7 @@ local function addLog(rem, args, isSelf, typeLabel)
             AntiSpamCounts[eventPath] = (AntiSpamCounts[eventPath] or 0) + 1
             if AntiSpamCounts[eventPath] >= 4 then
                 ManualBannedPaths[eventPath] = {guid = generateGUID(), details = "AUTO-BANNED BY ANTI-SPAM\n\n" .. logDetails}
-                local nM = {}; for _, m in ipairs(MainMemory) do if not m.fullText:match("Path: " .. eventPath:gsub("[%[%]%(%)%.%+%-%*%?%^%$%%]", "%%%1")) then table.insert(nM, m) end end
+                local nM = {}; for _, m in ipairs(MainMemory) do if not m.path:match(eventPath:gsub("[%[%]%(%)%.%+%-%*%?%^%$%%]", "%%%1")) then table.insert(nM, m) end end
                 MainMemory = nM; lastCount = -1; currentSelectionGUID = nil; updateRedListUI(); return 
             end
         else AntiSpamCounts[eventPath] = 0 end
@@ -218,50 +219,56 @@ ControlBtn.MouseButton1Click:Connect(function()
     AntiSpamBtn.Visible = not controlMode; BlockBtn.Visible = not controlMode
 end)
 
--- SMART DELETE SINGLE BUTTON
+-- SMART DELETE BUTTON (LOGS & BAN LIST)
 DelBtn.MouseButton1Click:Connect(function()
     if currentSelectionGUID then
+        -- 1. Сначала ищем в блок-листе
+        local banPath = nil
+        for path, data in pairs(ManualBannedPaths) do
+            if data.guid == currentSelectionGUID then
+                banPath = path
+                break
+            end
+        end
+
+        if banPath then
+            -- РАЗБАН: Удаляем из блок-листа и чистим фильтры пути
+            ManualBannedPaths[banPath] = nil
+            PathFilter["C_P_" .. banPath] = nil
+            PathFilter["S_PATH_" .. banPath] = nil
+            updateRedListUI()
+            currentSelectionGUID = nil
+            Details.Text = ""
+            feedback(DelBtn, "UNBANNED")
+            return
+        end
+
+        -- 2. Если не в бане, ищем в основном логе
         local targetData = nil
         local nM = {}
         for _, m in ipairs(MainMemory) do
-            if m.guid == currentSelectionGUID then
-                targetData = m
-            else
-                table.insert(nM, m)
-            end
+            if m.guid == currentSelectionGUID then targetData = m else table.insert(nM, m) end
         end
         
         if targetData then
             MainMemory = nM
-            
-            -- Проверка: остались ли еще такие же пути/аргументы в логе?
-            local pathStillExists = false
-            local argsStillExists = false
-            
+            local pathStillExists, argsStillExists = false, false
             for _, m in ipairs(MainMemory) do
                 if m.path == targetData.path and m.isSelf == targetData.isSelf then
                     pathStillExists = true
-                    if m.argsStr == targetData.argsStr then
-                        argsStillExists = true
-                    end
+                    if m.argsStr == targetData.argsStr then argsStillExists = true end
                 end
             end
             
-            -- Если это была последняя кнопка с таким путем/аргументами, убираем из фильтра
             if targetData.isSelf then
                 if not pathStillExists then PathFilter["S_PATH_" .. targetData.path] = nil end
                 if not argsStillExists then PathFilter["S_ARGS_" .. targetData.path .. "|" .. targetData.argsStr] = nil end
             else
-                local cKeyP = "C_P_" .. targetData.path
-                local cKeyA = "C_A_" .. targetData.path .. "|" .. targetData.argsStr
-                if not pathStillExists then PathFilter[cKeyP] = nil end
-                if not argsStillExists then PathFilter[cKeyA] = nil end
+                if not pathStillExists then PathFilter["C_P_" .. targetData.path] = nil end
+                if not argsStillExists then PathFilter["C_A_" .. targetData.path .. "|" .. targetData.argsStr] = nil end
             end
 
-            lastCount = -1 
-            currentSelectionGUID = nil
-            Details.Text = ""
-            feedback(DelBtn, "DELETED")
+            lastCount = -1; currentSelectionGUID = nil; Details.Text = ""; feedback(DelBtn, "DELETED")
         end
     end
 end)
@@ -270,15 +277,12 @@ BlockBtn.MouseButton1Click:Connect(function()
     if currentSelectionGUID then
         for i, d in ipairs(MainMemory) do
             if d.guid == currentSelectionGUID and not d.isSelf then
-                local p = d.fullText:match("Path: (.-)\n")
+                local p = d.path
                 if p then
                     ManualBannedPaths[p] = {guid = d.guid, details = "MANUAL BANNED:\n\n" .. d.fullText}
                     local nM = {}
                     for _, m in ipairs(MainMemory) do 
-                        local isTarget = m.fullText:match("Path: " .. p:gsub("[%[%]%(%)%.%+%-%*%?%^%$%%]", "%%%1"))
-                        if not (isTarget and not m.isSelf) then 
-                            table.insert(nM, m) 
-                        end 
+                        if not (m.path == p and not m.isSelf) then table.insert(nM, m) end 
                     end
                     MainMemory = nM; lastCount = -1; currentSelectionGUID = nil; updateRedListUI(); Details.Text = "Banned."
                     feedback(BlockBtn, "BANNED")
@@ -301,25 +305,20 @@ MinBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- RENDER LOOP
 task.spawn(function()
     while task.wait(0.5) do
         if not ContentFrame or not ContentFrame.Visible or #MainMemory == lastCount then continue end
         lastCount = #MainMemory; for _, v in pairs(Scroll:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
-        
         local sortedMemory = {}
         for _, d in ipairs(MainMemory) do if d.isSelf then table.insert(sortedMemory, d) end end
         for _, d in ipairs(MainMemory) do if not d.isSelf then table.insert(sortedMemory, d) end end
-
         for i, d in ipairs(sortedMemory) do
             local b = Instance.new("TextButton", Scroll); b.Size = UDim2.new(1, -6, 0, 30); b.LayoutOrder = i
             b.Text = string.format("[%s]%s %s", d.type, (d.isSelf and " [S]" or ""), d.name)
             b:SetAttribute("GUID", d.guid); b:SetAttribute("IsSelf", d.isSelf)
             b.BackgroundColor3 = (currentSelectionGUID == d.guid) and Color3.fromRGB(100, 50, 200) or (d.isSelf and Color3.fromRGB(45, 90, 45) or Color3.fromRGB(40, 40, 45))
             b.TextColor3 = Color3.new(1,1,1); b.BorderSizePixel = 0
-            b.MouseButton1Click:Connect(function()
-                currentSelectionGUID = d.guid; Details.Text = d.fullText; refreshSelectionColors()
-            end)
+            b.MouseButton1Click:Connect(function() currentSelectionGUID = d.guid; Details.Text = d.fullText; refreshSelectionColors() end)
         end
     end
 end)
@@ -328,35 +327,25 @@ local function createBotBtn(text, pos, color)
     local b = Instance.new("TextButton", ContentFrame); b.Size = UDim2.new(0, 220, 0, 58); b.Position = pos; b.BackgroundColor3 = color; b.Text = text; b.TextColor3 = Color3.new(1,1,1); b.Font = Enum.Font.SourceSansBold; b.TextSize = 14; b.BorderSizePixel = 0; return b
 end
 
-local CopyArgsBtn = createBotBtn("COPY ARGS", UDim2.new(0, 205, 0.68, 0), Color3.fromRGB(45, 90, 45))
-CopyArgsBtn.MouseButton1Click:Connect(function() 
-    local a = Details.Text:match("Args: (.-)\n\nScript"); if a then setclipboard(a); feedback(CopyArgsBtn, "ARGS COPIED!") end
+createBotBtn("COPY ARGS", UDim2.new(0, 205, 0.68, 0), Color3.fromRGB(45, 90, 45)).MouseButton1Click:Connect(function(rb) 
+    local a = Details.Text:match("Args: (.-)\n\nScript"); if a then setclipboard(a); feedback(rb, "ARGS COPIED!") end
 end)
-
-local CopyScriptBtn = createBotBtn("COPY SCRIPT", UDim2.new(0, 205, 0.83, 0), Color3.fromRGB(60, 60, 120))
-CopyScriptBtn.MouseButton1Click:Connect(function() 
-    local s = Details.Text:match("Script:\n(.*)"); if s then setclipboard(s); feedback(CopyScriptBtn, "SCRIPT COPIED!") end
+createBotBtn("COPY SCRIPT", UDim2.new(0, 205, 0.83, 0), Color3.fromRGB(60, 60, 120)).MouseButton1Click:Connect(function(rb) 
+    local s = Details.Text:match("Script:\n(.*)"); if s then setclipboard(s); feedback(rb, "SCRIPT COPIED!") end
 end)
-
-local ClearLogBtn = createBotBtn("CLEAR LOG", UDim2.new(0, 432, 0.68, 0), Color3.fromRGB(80, 80, 85))
-ClearLogBtn.MouseButton1Click:Connect(function()
-    fullClear(); feedback(ClearLogBtn, "LOG CLEARED!")
+createBotBtn("CLEAR LOG", UDim2.new(0, 432, 0.68, 0), Color3.fromRGB(80, 80, 85)).MouseButton1Click:Connect(function(rb)
+    fullClear(); feedback(rb, "LOG CLEARED!")
 end)
-
-local ExecuteBtn = createBotBtn("EXECUTE", UDim2.new(0, 432, 0.83, 0), Color3.fromRGB(120, 60, 60))
-ExecuteBtn.MouseButton1Click:Connect(function() 
+createBotBtn("EXECUTE", UDim2.new(0, 432, 0.83, 0), Color3.fromRGB(120, 60, 60)).MouseButton1Click:Connect(function(rb) 
     local s = Details.Text:match("Script:\n(.*)"); if s and s ~= "" then 
-        local f = loadstring(s); if f then task.spawn(f); feedback(ExecuteBtn, "EXECUTED!") end 
+        local f = loadstring(s); if f then task.spawn(f); feedback(rb, "EXECUTED!") end 
     end 
 end)
 
 SelfBtn.MouseButton1Click:Connect(function() 
-    selfMode = not selfMode
-    lastCount = -1
-    SelfBtn.Text = "SELF: "..(selfMode and "ON" or "OFF")
+    selfMode = not selfMode; lastCount = -1; SelfBtn.Text = "SELF: "..(selfMode and "ON" or "OFF")
     SelfBtn.BackgroundColor3 = selfMode and Color3.fromRGB(45, 90, 45) or Color3.fromRGB(150, 50, 50) 
 end)
-
 AntiSpamBtn.MouseButton1Click:Connect(function() 
     antiSpam = not antiSpam; AntiSpamBtn.Text = "ANTI-SPAM: "..(antiSpam and "ON" or "OFF")
     AntiSpamBtn.BackgroundColor3 = antiSpam and Color3.fromRGB(180, 150, 40) or Color3.fromRGB(80, 80, 85) 
