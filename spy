@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.7 - FINAL BUGFIX ]] --
+-- [[ KRALLDEN SPY v9.8 - FINAL STABLE ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -21,13 +21,27 @@ local isMin = false
 
 local function generateGUID() return tostring(tick()) .. "-" .. tostring(math.random(1, 100000)) end
 
+-- UI Elements Ref
+local RedListScroll, Scroll, Details, ContentFrame
+
+local function updateRedListUI()
+    if not RedListScroll then return end
+    for _, v in pairs(RedListScroll:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
+    for path, data in pairs(ManualBannedPaths) do
+        local b = Instance.new("TextButton", RedListScroll)
+        b.Size = UDim2.new(1, -6, 0, 25); b.BackgroundColor3 = Color3.fromRGB(100, 35, 35); b.TextColor3 = Color3.new(1,1,1); b.Font = Enum.Font.SourceSansBold; b.TextSize = 10; b.BorderSizePixel = 0
+        b.Text = " [X] " .. (path:match("[^%.%[%]]+$") or path)
+        b.MouseButton1Click:Connect(function() Details.Text = data.details end)
+    end
+end
+
 local function fullClear()
     MainMemory, PathFilter, lastCount, currentSelectionGUID = {}, {}, 0, nil
+    ManualBannedPaths = {}
     AntiSpamCooldowns, AntiSpamCounts = {}, {}
-    local details = Main:FindFirstChild("Details", true)
-    if details then details.Text = "" end
-    local scroll = Main:FindFirstChild("ScrollingFrame", true)
-    if scroll then for _, v in pairs(scroll:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end end
+    if Details then Details.Text = "" end
+    if Scroll then for _, v in pairs(Scroll:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end end
+    updateRedListUI()
 end
 
 -- HEADER
@@ -36,7 +50,7 @@ Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(2
 
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(0, 180, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.7"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
+Title.Text = "KRALLDEN SPY v9.8"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
 
 local MinBtn = Instance.new("TextButton", Header)
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "_"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0
@@ -55,45 +69,33 @@ AntiSpamBtn.Visible = false
 local BlockBtn = createHeaderBtn("BLOCK EVENT", -455, Color3.fromRGB(150, 50, 50))
 BlockBtn.Visible = false
 
-local ContentFrame = Instance.new("Frame", Main)
+ContentFrame = Instance.new("Frame", Main)
 ContentFrame.Name = "ContentFrame"; ContentFrame.Size = UDim2.new(1, 0, 1, -35); ContentFrame.Position = UDim2.new(0, 0, 0, 35); ContentFrame.BackgroundTransparency = 1; ContentFrame.ClipsDescendants = true
 
-local Scroll = Instance.new("ScrollingFrame", ContentFrame)
+Scroll = Instance.new("ScrollingFrame", ContentFrame)
 Scroll.Name = "ScrollingFrame"; Scroll.Position = UDim2.new(0, 8, 0, 8); Scroll.Size = UDim2.new(0, 190, 1, -16); Scroll.BackgroundColor3 = Color3.fromRGB(20, 20, 25); Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y; Scroll.BorderSizePixel = 0
 Instance.new("UIListLayout", Scroll).SortOrder = Enum.SortOrder.LayoutOrder
 
-local Details = Instance.new("TextBox", ContentFrame)
-Details.Name = "Details"; Details.Position = UDim2.new(0, 205, 0, 8); Details.Size = UDim2.new(0, 448, 0, 255); Details.BackgroundColor3 = Color3.fromRGB(10, 10, 12); Details.TextColor3 = Color3.new(1, 1, 1); Details.MultiLine = true; Details.TextWrapped = true; Details.TextEditable = false; Details.Font = Enum.Font.Code; Details.TextSize = 12; Details.TextXAlignment = 0; Details.TextYAlignment = 0; Details.ClearTextOnFocus = false
+Details = Instance.new("TextBox", ContentFrame)
+Details.Name = "Details"; Details.Position = UDim2.new(0, 205, 0, 8); Details.Size = UDim2.new(0, 448, 0, 255); Details.BackgroundColor3 = Color3.fromRGB(10, 10, 12); Details.TextColor3 = Color3.new(1, 1, 1); Details.MultiLine = true; Details.TextWrapped = true; Details.TextEditable = false; Details.Font = Enum.Font.Code; Details.TextSize = 12; Details.TextXAlignment = 0; Details.TextYAlignment = 0
 
-local RedListScroll = Instance.new("ScrollingFrame", ContentFrame)
+RedListScroll = Instance.new("ScrollingFrame", ContentFrame)
 RedListScroll.Name = "RedList"; RedListScroll.Position = UDim2.new(0, 662, 0, 145); RedListScroll.Size = UDim2.new(0, 150, 0, 250); RedListScroll.BackgroundColor3 = Color3.fromRGB(30, 15, 15); RedListScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y; RedListScroll.BorderSizePixel = 0
 Instance.new("UIListLayout", RedListScroll).SortOrder = Enum.SortOrder.LayoutOrder
 
--- FUNCTIONS
+-- LOGIC FUNCTIONS
 local function getSafePath(obj)
     local p = ""; pcall(function() local t = obj; while t and t ~= game do local n = tostring(t.Name); p = (n:match("[%s%W]") and '["'..n..'"]' or n) .. (p ~= "" and "." .. p or ""); t = t.Parent end end)
     return p ~= "" and "game." .. p:gsub("%.%[", "[") or "game.NilObject"
-end
-
-local function updateRedListUI()
-    for _, v in pairs(RedListScroll:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
-    for path, data in pairs(ManualBannedPaths) do
-        local b = Instance.new("TextButton", RedListScroll)
-        b.Size = UDim2.new(1, -6, 0, 25); b.BackgroundColor3 = Color3.fromRGB(100, 35, 35); b.TextColor3 = Color3.new(1,1,1); b.Font = Enum.Font.SourceSansBold; b.TextSize = 10; b.BorderSizePixel = 0
-        b.Text = " [X] " .. (path:match("[^%.%[%]]+$") or path)
-        b.MouseButton1Click:Connect(function() Details.Text = data.details end)
-    end
 end
 
 local function addLog(rem, args, isSelf, typeLabel)
     if (typeLabel == "FS" and not spyFS) or (typeLabel == "FC" and not spyFC) or (typeLabel == "IS" and not spyIS) then return end
     local eventPath = getSafePath(rem)
     
-    -- Проверка блокировок
     if ManualBannedPaths[eventPath] then return end
     if controlMode and PathFilter[eventPath] then return end 
     
-    -- Anti-Spam логика
     if not controlMode and antiSpam then
         if (tick() - (AntiSpamCooldowns[eventPath] or 0)) < 0.5 then
             AntiSpamCounts[eventPath] = (AntiSpamCounts[eventPath] or 0) + 1
@@ -128,7 +130,14 @@ mt.__namecall = newcclosure(function(self, ...)
     return old(self, ...)
 end); setreadonly(mt, true)
 
--- ACTIONS
+-- INTERACTION
+ControlBtn.MouseButton1Click:Connect(function() 
+    controlMode = not controlMode; fullClear()
+    ControlBtn.Text = "CONTROL: "..(controlMode and "ON" or "OFF")
+    ControlBtn.BackgroundColor3 = controlMode and Color3.fromRGB(150, 50, 255) or Color3.fromRGB(80, 80, 85)
+    AntiSpamBtn.Visible = not controlMode; BlockBtn.Visible = not controlMode
+end)
+
 BlockBtn.MouseButton1Click:Connect(function()
     if currentSelectionGUID then
         for i, d in ipairs(MainMemory) do
@@ -144,25 +153,26 @@ BlockBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-ControlBtn.MouseButton1Click:Connect(function() 
-    controlMode = not controlMode; fullClear()
-    ControlBtn.Text = "CONTROL: "..(controlMode and "ON" or "OFF")
-    ControlBtn.BackgroundColor3 = controlMode and Color3.fromRGB(150, 50, 255) or Color3.fromRGB(80, 80, 85)
-    AntiSpamBtn.Visible = not controlMode; BlockBtn.Visible = not controlMode
-end)
-
 MinBtn.MouseButton1Click:Connect(function()
     isMin = not isMin
     if isMin then
+        local currentX = Main.AbsolutePosition.X + Main.AbsoluteSize.X
+        local currentY = Main.AbsolutePosition.Y
         ContentFrame.Visible = false; ControlBtn.Visible = false; SelfBtn.Visible = false; AntiSpamBtn.Visible = false; BlockBtn.Visible = false
-        Main:TweenSize(UDim2.new(0, 250, 0, 35), "Out", "Quad", 0.15, true); MinBtn.Text = "+"
+        -- Сворачиваемся вправо: меняем размер и корректируем позицию, чтобы правый край стоял на месте
+        Main:TweenSizeAndPosition(UDim2.new(0, 250, 0, 35), UDim2.new(0, currentX - 250, 0, currentY), "Out", "Quad", 0.15, true)
+        MinBtn.Text = "+"
     else
-        Main:TweenSize(UDim2.new(0, 820, 0, 440), "Out", "Quad", 0.15, true, function()
+        local currentX = Main.AbsolutePosition.X + Main.AbsoluteSize.X
+        local currentY = Main.AbsolutePosition.Y
+        Main:TweenSizeAndPosition(UDim2.new(0, 820, 0, 440), UDim2.new(0, currentX - 820, 0, currentY), "Out", "Quad", 0.15, true, function()
             ContentFrame.Visible = true; ControlBtn.Visible = true; SelfBtn.Visible = true; if not controlMode then AntiSpamBtn.Visible = true; BlockBtn.Visible = true end
-        end); MinBtn.Text = "_"; lastCount = -1
+        end)
+        MinBtn.Text = "_"; lastCount = -1
     end
 end)
 
+-- RENDER LOOP
 task.spawn(function()
     while task.wait(0.5) do
         if not ContentFrame.Visible or #MainMemory == lastCount then continue end
