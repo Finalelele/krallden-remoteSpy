@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v10.0 - FIXED UI & ADVANCED SERIALIZER ]] --
+---- [[ KRALLDEN SPY v10.0 - FIXED UI & ADVANCED SERIALIZER ]] ----
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
