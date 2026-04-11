@@ -268,18 +268,35 @@ task.spawn(function()
     end
 end)
 
--- BOTTOM BUTTONS
+--- BOTTOM BUTTONS
 local function createBotBtn(text, pos, color)
     local b = Instance.new("TextButton", ContentFrame); b.Size = UDim2.new(0, 220, 0, 58); b.Position = pos; b.BackgroundColor3 = color; b.Text = text; b.TextColor3 = Color3.new(1,1,1); b.Font = Enum.Font.SourceSansBold; b.TextSize = 14; b.BorderSizePixel = 0; return b
 end
-createBotBtn("COPY ARGS", UDim2.new(0, 205, 0.68, 0), Color3.fromRGB(45, 90, 45)).MouseButton1Click:Connect(function() setclipboard(Details.Text:match("Args: (.-)\n\nScript") or "") end)
-createBotBtn("COPY SCRIPT", UDim2.new(0, 205, 0.83, 0), Color3.fromRGB(60, 60, 120)).MouseButton1Click:Connect(function() setclipboard(Details.Text:match("Script: (.*)") or "") end)
+
+createBotBtn("COPY ARGS", UDim2.new(0, 205, 0.68, 0), Color3.fromRGB(45, 90, 45)).MouseButton1Click:Connect(function() 
+    setclipboard(Details.Text:match("Args: (.-)\n\nScript") or "") 
+end)
+
+-- Исправлено: теперь захватывает всё, что идет ПОСЛЕ строки "Script:"
+createBotBtn("COPY SCRIPT", UDim2.new(0, 205, 0.83, 0), Color3.fromRGB(60, 60, 120)).MouseButton1Click:Connect(function() 
+    local code = Details.Text:match("Script:\n(.*)") 
+    setclipboard(code or "") 
+end)
+
 createBotBtn("CLEAR LOG", UDim2.new(0, 432, 0.68, 0), Color3.fromRGB(80, 80, 85)).MouseButton1Click:Connect(fullClear)
 
--- ФИКС: исправлено MouseButton1Connect на MouseButton1Click
+-- Исправлено: Execute теперь работает и для логов, и для заблокированных ивентов
 createBotBtn("EXECUTE", UDim2.new(0, 432, 0.83, 0), Color3.fromRGB(120, 60, 60)).MouseButton1Click:Connect(function() 
-    local code = Details.Text:match("Script: (.*)")
-    if code then loadstring(code)() end 
+    -- Паттерн ищет "Script:", перепрыгивает новую строку и берет весь остальной код
+    local code = Details.Text:match("Script:\n(.*)")
+    if code and code ~= "" then 
+        local func, err = loadstring(code)
+        if func then 
+            func() 
+        else 
+            warn("Krallden Spy Execute Error: " .. tostring(err))
+        end
+    end 
 end)
 
 SelfBtn.MouseButton1Click:Connect(function() selfMode = not selfMode; SelfBtn.Text = "SELF: "..(selfMode and "ON" or "OFF"); SelfBtn.BackgroundColor3 = selfMode and Color3.fromRGB(45, 90, 45) or Color3.fromRGB(150, 50, 50) end)
