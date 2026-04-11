@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.2.8 - FULL SOURCE - SYNCED SELF FILTER ]] --
+-- [[ KRALLDEN SPY v9.2.9 - FULL SOURCE - UNIFIED DUAL-CHECK FILTER ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -18,12 +18,6 @@ local selfMode, controlMode, antiSpam = true, true, true
 local spyFS, spyFC, spyIS = true, false, false
 local currentSelectionGUID, lastCount = nil, 0
 local isMin = false
-
--- Специальная таблица для синхронизации SELF фильтров
-local SelfGlobalFilter = {
-    Paths = {}, -- Сюда попадают пути, если они были залогированы в режиме ON
-    Args = {}   -- Тут храним [путь] = {аргументы1, аргументы2}, если в режиме OFF
-}
 
 local function generateGUID() return tostring(tick()) .. "-" .. tostring(math.random(1, 100000)) end
 
@@ -74,7 +68,6 @@ end
 
 local function fullClear()
     MainMemory, PathFilter, lastCount, currentSelectionGUID = {}, {}, 0, nil
-    SelfGlobalFilter = { Paths = {}, Args = {} }
     ManualBannedPaths = {}
     AntiSpamCooldowns, AntiSpamCounts = {}, {}
     if Details then Details.Text = "" end
@@ -89,7 +82,7 @@ Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(2
 
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.2.8"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
+Title.Text = "KRALLDEN SPY v9.2.9"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
 
 local MinBtn = Instance.new("TextButton", Header)
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "_"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0
@@ -167,25 +160,31 @@ local function addLog(rem, args, isSelf, typeLabel)
     for i, v in ipairs(args) do table.insert(argList, parseValue(v)) end
     local finalArgsStr = table.concat(argList, ", ")
     
-    -- [[ СИНХРОНИЗИРОВАННАЯ ФИЛЬТРАЦИЯ SELF ]]
+    -- [[ УНИФИЦИРОВАННАЯ ПРОВЕРКА SELF ]]
     if isSelf then
-        -- 1. Если этот путь УЖЕ залогирован в режиме ON, игнорируем его навсегда
-        if SelfGlobalFilter.Paths[eventPath] then return end
+        local keyPathOnly = "S_PATH_" .. eventPath
+        local keyPathArgs = "S_ARGS_" .. eventPath .. "|" .. finalArgsStr
         
-        -- 2. Проверяем аргументы (для режима OFF или если режим сменился)
-        if SelfGlobalFilter.Args[eventPath] and SelfGlobalFilter.Args[eventPath][finalArgsStr] then
-            return -- Эти аргументы для этого пути мы уже видели
-        end
+        -- Если режим ON: проверяем только по пути
+        if selfMode and PathFilter[keyPathOnly] then return end
+        
+        -- Если режим OFF: проверяем по пути + аргументам
+        if not selfMode and PathFilter[keyPathArgs] then return end
+        
+        -- Если прошли проверки, записываем оба ключа для синхронизации
+        PathFilter[keyPathOnly] = true
+        PathFilter[keyPathArgs] = true
     else
-        -- Обычный фильтр для чужих ивентов
+        -- Обычная фильтрация для чужих вызовов
         local otherKey = (controlMode and "C_P_" or "C_A_") .. eventPath .. (controlMode and "" or "|" .. finalArgsStr)
         if PathFilter[otherKey] then return end
+        PathFilter[otherKey] = true
     end
 
     local methodName = (typeLabel == "IS" and "InvokeServer" or "FireServer")
     local logDetails = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, finalArgsStr, eventPath, methodName, finalArgsStr)
 
-    -- ANTI-SPAM LOGIC
+    -- ANTI-SPAM
     if not isSelf and not controlMode and antiSpam then
         if (tick() - (AntiSpamCooldowns[eventPath] or 0)) < 0.4 then
             AntiSpamCounts[eventPath] = (AntiSpamCounts[eventPath] or 0) + 1
@@ -196,19 +195,6 @@ local function addLog(rem, args, isSelf, typeLabel)
             end
         else AntiSpamCounts[eventPath] = 0 end
         AntiSpamCooldowns[eventPath] = tick()
-    end
-
-    -- RECORDING TO FILTERS
-    if isSelf then
-        if selfMode then
-            SelfGlobalFilter.Paths[eventPath] = true
-        else
-            if not SelfGlobalFilter.Args[eventPath] then SelfGlobalFilter.Args[eventPath] = {} end
-            SelfGlobalFilter.Args[eventPath][finalArgsStr] = true
-        end
-    else
-        local otherKey = (controlMode and "C_P_" or "C_A_") .. eventPath .. (controlMode and "" or "|" .. finalArgsStr)
-        PathFilter[otherKey] = true
     end
 
     local data = { guid = generateGUID(), name = tostring(rem.Name), type = typeLabel, isSelf = isSelf, fullText = logDetails }
