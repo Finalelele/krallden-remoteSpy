@@ -35,35 +35,6 @@ local function updateRedListUI()
     end
 end
 
-local function parseTable(t, d)
-    d = d or 0
-    if d > 4 then return "..." end
-    
-    local tType = type(t)
-    if tType == "string" then 
-        return '"' .. t .. '"'
-    elseif tType == "table" then
-        local res, i = "{", 0
-        for k, v in pairs(t) do
-            i = i + 1
-            if i > 15 then res = res .. "... " break end
-            local key = type(k) == "number" and "["..k.."]" or '["'..tostring(k)..'"]'
-            res = res .. key .. " = " .. parseTable(v, d + 1) .. ", "
-        end
-        return res:gsub(", $", "") .. "}"
-    elseif tType == "userdata" then
-        -- Обработка специфичных типов Roblox (CFrame, Vector3 и т.д.)
-        local s, naming = tostring(t), ""
-        if typeof(t) == "CFrame" then naming = "CFrame.new"
-        elseif typeof(t) == "Vector3" then naming = "Vector3.new"
-        elseif typeof(t) == "Color3" then naming = "Color3.new" 
-        end
-        return naming .. "(" .. s .. ")"
-    else
-        return tostring(t)
-    end
-end
-
 local function fullClear()
     MainMemory, PathFilter, lastCount, currentSelectionGUID = {}, {}, 0, nil
     ManualBannedPaths = {}
@@ -120,40 +91,66 @@ end
 
 local function addLog(rem, args, isSelf, typeLabel)
     if (typeLabel == "FS" and not spyFS) or (typeLabel == "FC" and not spyFC) or (typeLabel == "IS" and not spyIS) then return end
-    local eventPath = getSafePath(rem)
     
+    local eventPath = getSafePath(rem)
     if ManualBannedPaths[eventPath] then return end
     if controlMode and PathFilter[eventPath] then return end 
 
-    -- Пример того, как должна формироваться переменная для окна деталей:
-    local function updateDetails(remote, args, method)
-        local remotePath = remote:GetFullName()
-        local formattedArgs = parseTable(args)
-        
-        -- Формируем текст так, чтобы он идеально ложился в UI и легко копировался
-        local detailsTemplate = 
-    [[Type: %s
-    Path: game.%s
-    Args: %s
-    
-    Script:
-    game.%s:%s(%s)]]
-    
-        local finalValue = string.format(
-            detailsTemplate, 
-            method, remotePath, formattedArgs, 
-            remotePath, method, formattedArgs
-        )
-        
-        return finalValue
+    -- [ИНТЕГРИРОВАННЫЙ ПАРСЕР]
+    local function parseTable(t, d)
+        d = d or 0
+        if d > 4 then return "..." end
+        local tType = type(t)
+        if tType == "string" then 
+            return '"' .. t .. '"'
+        elseif tType == "table" then
+            local res, i = "{", 0
+            for k, v in pairs(t) do
+                i = i + 1
+                if i > 15 then res = res .. "... " break end
+                local key = type(k) == "number" and "["..k.."]" or '["'..tostring(k)..'"]'
+                res = res .. key .. " = " .. parseTable(v, d + 1) .. ", "
+            end
+            local result = res:gsub(", $", "") .. "}"
+            return result == "}" and "{}" or result
+        elseif tType == "userdata" then
+            local s = tostring(t)
+            local typeName = typeof(t)
+            if typeName == "CFrame" then return "CFrame.new(" .. s .. ")"
+            elseif typeName == "Vector3" then return "Vector3.new(" .. s .. ")"
+            elseif typeName == "Color3" then return "Color3.new(" .. s .. ")"
+            elseif typeName == "Instance" then return t:GetFullName()
+            end
+            return s
+        else
+            return tostring(t)
+        end
     end
+
+    -- Форматируем аргументы через наш парсер
+    local finalArgs = parseTable(args)
+    -- Убираем внешние скобки {}, если парсер вернул таблицу верхнего уровня, 
+    -- чтобы в методе FireServer(args) не было двойных скобок, если ты этого не хочешь.
+    -- Но для чистоты оставим как есть, так как это идеальный формат.
+
+    local methodName = (typeLabel == "IS" and "InvokeServer" or "FireServer")
+    
+    -- [ОБНОВЛЕННЫЙ LOG DETAILS]
+    local logDetails = string.format(
+        "Type: %s\nPath: %s\nArgs: %s\n\nScript:\n%s:%s(%s)", 
+        typeLabel, 
+        eventPath, 
+        finalArgs, 
+        eventPath, 
+        methodName, 
+        finalArgs
+    )
 
     -- Анти-спам с очисткой дублей
     if not controlMode and antiSpam then
         if (tick() - (AntiSpamCooldowns[eventPath] or 0)) < 0.5 then
             AntiSpamCounts[eventPath] = (AntiSpamCounts[eventPath] or 0) + 1
             if AntiSpamCounts[eventPath] >= 4 then
-                -- Очистка: выкидываем из памяти всё, что связано с этим путем
                 local cleanMem = {}
                 for _, m in ipairs(MainMemory) do
                     if not m.fullText:match("Path: " .. eventPath) then table.insert(cleanMem, m) end
@@ -170,8 +167,14 @@ local function addLog(rem, args, isSelf, typeLabel)
     end
 
     local data = {
-        guid = generateGUID(), name = tostring(rem.Name), type = typeLabel, isSelf = isSelf,
-        fullText = logDetails
+        guid = generateGUID(), 
+        name = tostring(rem.Name), 
+        type = typeLabel, 
+        isSelf = isSelf,
+        fullText = logDetails,
+        -- Добавляем чистые данные для кнопок копирования, если UI их использует
+        argsOnly = finalArgs,
+        methodOnly = methodName
     }
     
     if controlMode then PathFilter[eventPath] = true end
