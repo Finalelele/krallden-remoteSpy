@@ -1,5 +1,4 @@
----- [[ KRALLDEN SPY v10.0 - FIXED UI & ADVANCED SERIALIZER ]] ----
-
+-- [[ KRALLDEN SPY v10.0 - FINAL STABLE MERGE ]] --
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
@@ -16,10 +15,9 @@ local MainMemory, PathFilter, ManualBannedPaths = {}, {}, {}
 local AntiSpamCooldowns, AntiSpamCounts = {}, {}
 local selfMode, controlMode, antiSpam = true, true, false
 local spyFS, spyFC, spyIS = true, false, false
-local currentSelectionGUID, lastCount = nil, 0
-local isMin = false
+local currentSelectionGUID, lastCount, isMin = nil, 0, false
 
--- [[ СЕРИАЛИЗАТОР (РАСШИФРОВКА АРГУМЕНТОВ) ]] --
+-- [[ ADVANCED SERIALIZER ]] --
 local function serialize(val)
     local t = typeof(val)
     if t == "string" then return '"' .. val .. '"'
@@ -45,7 +43,7 @@ end
 
 local function generateGUID() return tostring(tick()) .. "-" .. tostring(math.random(1, 100000)) end
 
--- [[ UI ПЕРЕМЕННЫЕ ]] --
+-- [[ UI ELEMENTS ]] --
 local Header = Instance.new("Frame", Main)
 Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(25, 25, 30); Header.ZIndex = 10; Header.BorderSizePixel = 0
 
@@ -56,20 +54,21 @@ local ContentFrame = Instance.new("Frame", Main)
 ContentFrame.Size = UDim2.new(1, 0, 1, -35); ContentFrame.Position = UDim2.new(0, 0, 0, 35); ContentFrame.BackgroundTransparency = 1; ContentFrame.ClipsDescendants = true
 
 local Scroll = Instance.new("ScrollingFrame", ContentFrame)
-Scroll.Position = UDim2.new(0, 8, 0, 8); Scroll.Size = UDim2.new(0, 190, 1, -16); Scroll.BackgroundColor3 = Color3.fromRGB(20, 20, 25); Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y; Scroll.BorderSizePixel = 0; Scroll.ScrollBarThickness = 4
+Scroll.Position = UDim2.new(0, 8, 0, 8); Scroll.Size = UDim2.new(0, 190, 1, -16); Scroll.BackgroundColor3 = Color3.fromRGB(20, 20, 25); Scroll.BorderSizePixel = 0; Scroll.ScrollBarThickness = 4; Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 Instance.new("UIListLayout", Scroll).SortOrder = Enum.SortOrder.LayoutOrder
 
 local Details = Instance.new("TextBox", ContentFrame)
-Details.Position = UDim2.new(0, 205, 0, 8); Details.Size = UDim2.new(0, 448, 0, 255); Details.BackgroundColor3 = Color3.fromRGB(10, 10, 12); Details.TextColor3 = Color3.new(1, 1, 1); Details.MultiLine = true; Details.TextEditable = false; Details.Font = Enum.Font.Code; Details.TextSize = 12; Details.TextXAlignment = 0; Details.TextYAlignment = 0; Details.ClearTextOnFocus = false
+Details.Position = UDim2.new(0, 205, 0, 8); Details.Size = UDim2.new(0, 448, 0, 255); Details.BackgroundColor3 = Color3.fromRGB(10, 10, 12); Details.TextColor3 = Color3.new(1, 1, 1); Details.MultiLine = true; Details.TextEditable = false; Details.Font = Enum.Font.Code; Details.TextSize = 12; Details.TextXAlignment = 0; Details.TextYAlignment = 0; Details.ClearTextOnFocus = false; Details.TextWrapped = true
 
+-- BLOCK LIST SECTION
 local BlockListLabel = Instance.new("TextLabel", ContentFrame)
 BlockListLabel.Size = UDim2.new(0, 150, 0, 20); BlockListLabel.Position = UDim2.new(0, 662, 0, 125); BlockListLabel.BackgroundTransparency = 1; BlockListLabel.Text = "BLOCK LIST"; BlockListLabel.TextColor3 = Color3.fromRGB(200, 50, 50); BlockListLabel.Font = Enum.Font.SourceSansBold; BlockListLabel.TextSize = 14
 
 local RedListScroll = Instance.new("ScrollingFrame", ContentFrame)
-RedListScroll.Position = UDim2.new(0, 662, 0, 145); RedListScroll.Size = UDim2.new(0, 150, 0, 250); RedListScroll.BackgroundColor3 = Color3.fromRGB(30, 15, 15); RedListScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y; RedListScroll.BorderSizePixel = 0; RedListScroll.ScrollBarThickness = 2
+RedListScroll.Position = UDim2.new(0, 662, 0, 145); RedListScroll.Size = UDim2.new(0, 150, 0, 250); RedListScroll.BackgroundColor3 = Color3.fromRGB(30, 15, 15); RedListScroll.BorderSizePixel = 0; RedListScroll.ScrollBarThickness = 2; RedListScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 Instance.new("UIListLayout", RedListScroll).SortOrder = Enum.SortOrder.LayoutOrder
 
--- [[ ФУНКЦИИ ОБНОВЛЕНИЯ ]] --
+-- [[ FUNCTIONS ]] --
 local function updateRedListUI()
     for _, v in pairs(RedListScroll:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
     for path, data in pairs(ManualBannedPaths) do
@@ -114,7 +113,7 @@ local function addLog(rem, args, isSelf, typeLabel)
     if isSelf then table.insert(MainMemory, 1, data) else table.insert(MainMemory, data) end
 end
 
--- [[ HOOKS ]] --
+-- HOOKS
 local mt = getrawmetatable(game); local old = mt.__namecall; setreadonly(mt, false)
 mt.__namecall = newcclosure(function(self, ...)
     local m = getnamecallmethod(); local a = {...}; local s = checkcaller()
@@ -124,62 +123,46 @@ mt.__namecall = newcclosure(function(self, ...)
     return old(self, ...)
 end); setreadonly(mt, true)
 
--- [[ ВЕРХНИЕ КНОПКИ ]] --
+-- [[ UI BUTTONS & INTERACTION ]] --
 local function createHeaderBtn(text, offset, color)
-    local b = Instance.new("TextButton", Header)
-    b.Size = UDim2.new(0, 100, 0, 24); b.Position = UDim2.new(1, offset, 0.5, -12); b.BackgroundColor3 = color; b.Text = text; b.TextColor3 = Color3.new(1,1,1); b.Font = Enum.Font.SourceSansBold; b.TextSize = 11; b.ZIndex = 11; b.BorderSizePixel = 0
-    return b
+    local b = Instance.new("TextButton", Header); b.Size = UDim2.new(0, 100, 0, 24); b.Position = UDim2.new(1, offset, 0.5, -12); b.BackgroundColor3 = color; b.Text = text; b.TextColor3 = Color3.new(1,1,1); b.Font = Enum.Font.SourceSansBold; b.TextSize = 11; b.ZIndex = 11; b.BorderSizePixel = 0; return b
 end
 
 local ControlBtn = createHeaderBtn("CONTROL: ON", -150, Color3.fromRGB(150, 50, 255))
 local SelfBtn = createHeaderBtn("SELF: ON", -235, Color3.fromRGB(45, 90, 45))
 local AntiSpamBtn = createHeaderBtn("ANTI-SPAM: OFF", -345, Color3.fromRGB(180, 150, 40)); AntiSpamBtn.Visible = false
 local BlockBtn = createHeaderBtn("BLOCK EVENT", -455, Color3.fromRGB(150, 50, 50)); BlockBtn.Visible = false
+local MinBtn = Instance.new("TextButton", Header); MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "_"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0
 
-local MinBtn = Instance.new("TextButton", Header)
-MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "_"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0
-
--- [[ НИЖНИЕ КНОПКИ С ОТКЛИКОМ ]] --
 local function createBotBtn(text, pos, color, feedback)
-    local b = Instance.new("TextButton", ContentFrame)
-    b.Size = UDim2.new(0, 220, 0, 58); b.Position = pos; b.BackgroundColor3 = color; b.Text = text; b.TextColor3 = Color3.new(1,1,1); b.Font = Enum.Font.SourceSansBold; b.TextSize = 14; b.BorderSizePixel = 0
-    b.MouseButton1Click:Connect(function()
-        local oldText = b.Text; b.Text = feedback
-        task.delay(1, function() if b then b.Text = oldText end end)
-    end)
-    return b
+    local b = Instance.new("TextButton", ContentFrame); b.Size = UDim2.new(0, 220, 0, 58); b.Position = pos; b.BackgroundColor3 = color; b.Text = text; b.TextColor3 = Color3.new(1,1,1); b.Font = Enum.Font.SourceSansBold; b.TextSize = 14; b.BorderSizePixel = 0
+    b.MouseButton1Click:Connect(function() b.Text = feedback; task.delay(1, function() if b then b.Text = text end end) end); return b
 end
 
 createBotBtn("COPY ARGS", UDim2.new(0, 205, 0.68, 0), Color3.fromRGB(45, 90, 45), "ARGS COPIED!").MouseButton1Click:Connect(function() setclipboard(Details.Text:match("Args: (.-)\n\nScript") or "") end)
 createBotBtn("COPY SCRIPT", UDim2.new(0, 205, 0.83, 0), Color3.fromRGB(60, 60, 120), "SCRIPT COPIED!").MouseButton1Click:Connect(function() setclipboard(Details.Text:match("Script: (.*)") or "") end)
-createBotBtn("CLEAR LOG", UDim2.new(0, 432, 0.68, 0), Color3.fromRGB(80, 80, 85), "LOG CLEARED!").MouseButton1Click:Connect(function() 
-    MainMemory, PathFilter, lastCount, currentSelectionGUID = {}, {}, 0, nil; ManualBannedPaths = {}; updateRedListUI(); Details.Text = "" 
-end)
-createBotBtn("EXECUTE", UDim2.new(0, 432, 0.83, 0), Color3.fromRGB(120, 60, 60), "EXECUTED!").MouseButton1Click:Connect(function() 
-    local code = Details.Text:match("Script: (.*)")
-    if code then local f, e = loadstring(code); if f then f() else warn(e) end end 
-end)
+createBotBtn("CLEAR LOG", UDim2.new(0, 432, 0.68, 0), Color3.fromRGB(80, 80, 85), "LOG CLEARED!").MouseButton1Click:Connect(function() MainMemory, PathFilter, lastCount, currentSelectionGUID = {}, {}, 0, nil; ManualBannedPaths = {}; updateRedListUI(); Details.Text = "" end)
+createBotBtn("EXECUTE", UDim2.new(0, 432, 0.83, 0), Color3.fromRGB(120, 60, 60), "EXECUTED!").MouseButton1Click:Connect(function() local code = Details.Text:match("Script: (.*)"); if code then loadstring(code)() end end)
 
--- [[ ПЕРЕКЛЮЧАТЕЛИ ТИПОВ ]] --
 local function createTypeBtn(text, pos, color, var)
     local b = Instance.new("TextButton", ContentFrame); b.Size = UDim2.new(0, 150, 0, 35); b.Position = pos; b.BackgroundColor3 = color; b.Text = text; b.TextColor3 = Color3.new(1,1,1); b.Font = Enum.Font.SourceSansBold; b.TextSize = 12; b.BorderSizePixel = 0
     b.MouseButton1Click:Connect(function()
         if var == "FS" then spyFS = not spyFS; b.Text = "FS SPY: "..(spyFS and "ON" or "OFF"); b.BackgroundColor3 = spyFS and color or Color3.fromRGB(40,40,45)
         elseif var == "FC" then spyFC = not spyFC; b.Text = "FC SPY: "..(spyFC and "ON" or "OFF"); b.BackgroundColor3 = spyFC and color or Color3.fromRGB(40,40,45)
         elseif var == "IS" then spyIS = not spyIS; b.Text = "IS SPY: "..(spyIS and "ON" or "OFF"); b.BackgroundColor3 = spyIS and color or Color3.fromRGB(40,40,45) end
-    end)
-    return b
+    end); return b
 end
 createTypeBtn("FS SPY: ON", UDim2.new(0, 662, 0, 8), Color3.fromRGB(150, 50, 255), "FS")
 createTypeBtn("FC SPY: OFF", UDim2.new(0, 662, 0, 48), Color3.fromRGB(50, 150, 255), "FC")
 createTypeBtn("IS SPY: OFF", UDim2.new(0, 662, 0, 88), Color3.fromRGB(255, 150, 50), "IS")
 
--- [[ ЛОГИКА ИНТЕРФЕЙСА ]] --
 ControlBtn.MouseButton1Click:Connect(function() 
-    controlMode = not controlMode; MainMemory, PathFilter, lastCount = {}, {}, 0; Details.Text = ""
-    ControlBtn.Text = "CONTROL: "..(controlMode and "ON" or "OFF"); ControlBtn.BackgroundColor3 = controlMode and Color3.fromRGB(150, 50, 255) or Color3.fromRGB(80, 80, 85)
-    AntiSpamBtn.Visible = not controlMode; BlockBtn.Visible = not controlMode
+    controlMode = not controlMode; ControlBtn.Text = "CONTROL: "..(controlMode and "ON" or "OFF"); ControlBtn.BackgroundColor3 = controlMode and Color3.fromRGB(150, 50, 255) or Color3.fromRGB(80, 80, 85)
+    AntiSpamBtn.Visible = not controlMode; BlockBtn.Visible = not controlMode; MainMemory, PathFilter, lastCount = {}, {}, 0; Details.Text = ""
 end)
+
+SelfBtn.MouseButton1Click:Connect(function() selfMode = not selfMode; SelfBtn.Text = "SELF: "..(selfMode and "ON" or "OFF"); SelfBtn.BackgroundColor3 = selfMode and Color3.fromRGB(45, 90, 45) or Color3.fromRGB(150, 50, 50) end)
+AntiSpamBtn.MouseButton1Click:Connect(function() antiSpam = not antiSpam; AntiSpamBtn.Text = "ANTI-SPAM: "..(antiSpam and "ON" or "OFF"); AntiSpamBtn.BackgroundColor3 = antiSpam and Color3.fromRGB(180, 150, 40) or Color3.fromRGB(80, 80, 85) end)
 
 BlockBtn.MouseButton1Click:Connect(function()
     if currentSelectionGUID then
@@ -193,16 +176,17 @@ BlockBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-SelfBtn.MouseButton1Click:Connect(function() selfMode = not selfMode; SelfBtn.Text = "SELF: "..(selfMode and "ON" or "OFF"); SelfBtn.BackgroundColor3 = selfMode and Color3.fromRGB(45, 90, 45) or Color3.fromRGB(150, 50, 50) end)
-AntiSpamBtn.MouseButton1Click:Connect(function() antiSpam = not antiSpam; AntiSpamBtn.Text = "ANTI-SPAM: "..(antiSpam and "ON" or "OFF"); AntiSpamBtn.BackgroundColor3 = antiSpam and Color3.fromRGB(180, 150, 40) or Color3.fromRGB(80, 80, 85) end)
-
 MinBtn.MouseButton1Click:Connect(function()
-    isMin = not isMin
-    if isMin then ContentFrame.Visible = false; Main:TweenSize(UDim2.new(0, 250, 0, 35), "Out", "Quad", 0.15, true); MinBtn.Text = "+"
-    else Main:TweenSize(UDim2.new(0, 820, 0, 440), "Out", "Quad", 0.15, true, function() ContentFrame.Visible = true end); MinBtn.Text = "_"; lastCount = -1 end
+    isMin = not isMin; local currentX = Main.AbsolutePosition.X + Main.AbsoluteSize.X; local currentY = Main.AbsolutePosition.Y
+    if isMin then ContentFrame.Visible = false; ControlBtn.Visible = false; SelfBtn.Visible = false; AntiSpamBtn.Visible = false; BlockBtn.Visible = false
+        Main:TweenSizeAndPosition(UDim2.new(0, 250, 0, 35), UDim2.new(0, currentX - 250, 0, currentY), "Out", "Quad", 0.15, true); MinBtn.Text = "+"
+    else Main:TweenSizeAndPosition(UDim2.new(0, 820, 0, 440), UDim2.new(0, currentX - 820, 0, currentY), "Out", "Quad", 0.15, true, function() 
+        ContentFrame.Visible = true; ControlBtn.Visible = true; SelfBtn.Visible = true; if not controlMode then AntiSpamBtn.Visible = true; BlockBtn.Visible = true end end)
+        MinBtn.Text = "_"; lastCount = -1
+    end
 end)
 
--- [[ ЦИКЛ ОТРИСОВКИ СПИСКА ]] --
+-- RENDER LOOP
 task.spawn(function()
     while task.wait(0.5) do
         if not ContentFrame.Visible or #MainMemory == lastCount then continue end
