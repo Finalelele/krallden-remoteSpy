@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.2.7 - FULL SOURCE - GLOBAL FILTER LOGIC ]] --
+-- [[ KRALLDEN SPY v9.2.9 - FULL SOURCE - UNIFIED DUAL-CHECK FILTER ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -82,7 +82,7 @@ Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(2
 
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.2.7"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
+Title.Text = "KRALLDEN SPY v9.2.9"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
 
 local MinBtn = Instance.new("TextButton", Header)
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "_"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0
@@ -160,20 +160,31 @@ local function addLog(rem, args, isSelf, typeLabel)
     for i, v in ipairs(args) do table.insert(argList, parseValue(v)) end
     local finalArgsStr = table.concat(argList, ", ")
     
-    -- [[ НОВАЯ ЛОГИКА ФИЛЬТРАЦИИ ]]
-    -- Сначала проверяем, есть ли этот путь в глобальном фильтре для Self
+    -- [[ УНИФИЦИРОВАННАЯ ПРОВЕРКА SELF ]]
     if isSelf then
-        if PathFilter["S_P_" .. eventPath] then return end -- Если уже видели этот путь (Self ON), блочим
-        if not selfMode and PathFilter["S_A_" .. eventPath .. "|" .. finalArgsStr] then return end -- Если Self OFF и аргументы те же, блочим
+        local keyPathOnly = "S_PATH_" .. eventPath
+        local keyPathArgs = "S_ARGS_" .. eventPath .. "|" .. finalArgsStr
+        
+        -- Если режим ON: проверяем только по пути
+        if selfMode and PathFilter[keyPathOnly] then return end
+        
+        -- Если режим OFF: проверяем по пути + аргументам
+        if not selfMode and PathFilter[keyPathArgs] then return end
+        
+        -- Если прошли проверки, записываем оба ключа для синхронизации
+        PathFilter[keyPathOnly] = true
+        PathFilter[keyPathArgs] = true
     else
         -- Обычная фильтрация для чужих вызовов
         local otherKey = (controlMode and "C_P_" or "C_A_") .. eventPath .. (controlMode and "" or "|" .. finalArgsStr)
         if PathFilter[otherKey] then return end
+        PathFilter[otherKey] = true
     end
 
     local methodName = (typeLabel == "IS" and "InvokeServer" or "FireServer")
     local logDetails = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, finalArgsStr, eventPath, methodName, finalArgsStr)
 
+    -- ANTI-SPAM
     if not isSelf and not controlMode and antiSpam then
         if (tick() - (AntiSpamCooldowns[eventPath] or 0)) < 0.4 then
             AntiSpamCounts[eventPath] = (AntiSpamCounts[eventPath] or 0) + 1
@@ -187,16 +198,6 @@ local function addLog(rem, args, isSelf, typeLabel)
     end
 
     local data = { guid = generateGUID(), name = tostring(rem.Name), type = typeLabel, isSelf = isSelf, fullText = logDetails }
-    
-    -- Записываем в фильтр
-    if isSelf then
-        if selfMode then PathFilter["S_P_" .. eventPath] = true 
-        else PathFilter["S_A_" .. eventPath .. "|" .. finalArgsStr] = true end
-    else
-        local otherKey = (controlMode and "C_P_" or "C_A_") .. eventPath .. (controlMode and "" or "|" .. finalArgsStr)
-        PathFilter[otherKey] = true
-    end
-    
     table.insert(MainMemory, 1, data)
 end
 
