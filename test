@@ -101,27 +101,46 @@ local function addLog(rem, args, isSelf, typeLabel)
         d = d or 0
         if d > 4 then return "..." end
         local tType = type(t)
+        
         if tType == "string" then 
             return '"' .. t .. '"'
         elseif tType == "table" then
+            -- Проверка: является ли таблица простым списком (массивом)
+            local isArray = true
+            local count = 0
+            for k, v in pairs(t) do
+                count = count + 1
+                if type(k) ~= "number" or k ~= count then
+                    isArray = false
+                    break
+                end
+            end
+
             local res, i = "{", 0
             for k, v in pairs(t) do
                 i = i + 1
                 if i > 15 then res = res .. "... " break end
-                local key = type(k) == "number" and "["..k.."]" or '["'..tostring(k)..'"]'
-                res = res .. key .. " = " .. parseTable(v, d + 1) .. ", "
+                
+                if isArray then
+                    -- Если это массив, пишем только значение
+                    res = res .. parseTable(v, d + 1) .. ", "
+                else
+                    -- Если это словарь, пишем [ключ] = значение
+                    local key = type(k) == "number" and "["..k.."]" or '["'..tostring(k)..'"]'
+                    res = res .. key .. " = " .. parseTable(v, d + 1) .. ", "
+                end
             end
+            
             local result = res:gsub(", $", "") .. "}"
             return result == "}" and "{}" or result
         elseif tType == "userdata" then
-            local s = tostring(t)
             local typeName = typeof(t)
-            if typeName == "CFrame" then return "CFrame.new(" .. s .. ")"
-            elseif typeName == "Vector3" then return "Vector3.new(" .. s .. ")"
-            elseif typeName == "Color3" then return "Color3.new(" .. s .. ")"
+            if typeName == "CFrame" then return "CFrame.new(" .. tostring(t) .. ")"
+            elseif typeName == "Vector3" then return "Vector3.new(" .. tostring(t) .. ")"
+            elseif typeName == "Color3" then return "Color3.new(" .. tostring(t) .. ")"
             elseif typeName == "Instance" then return t:GetFullName()
             end
-            return s
+            return tostring(t)
         else
             return tostring(t)
         end
