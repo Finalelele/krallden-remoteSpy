@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.4.1 - FULL SOURCE - SMART PATH PARSER & UI COLORS ]] --
+-- [[ KRALLDEN SPY v9.4.2 - FIX: TABLE INSERT & SMART ARG PARSER ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -89,7 +89,7 @@ Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(2
 
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.4.1"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
+Title.Text = "KRALLDEN SPY v9.4.2"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
 
 local MinBtn = Instance.new("TextButton", Header)
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "_"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0
@@ -100,7 +100,6 @@ local function createHeaderBtn(text, offset, color, sizeX)
     return b
 end
 
--- NEW COLORS (BIARYL / CYAN FOR CONTROL)
 local ControlBtn = createHeaderBtn("CONTROL: ON", -150, Color3.fromRGB(0, 170, 190))
 local SelfBtn = createHeaderBtn("SELF: ON", -235, Color3.fromRGB(45, 90, 45), 80)
 local DelBtn = createHeaderBtn("DEL BTN", -310, Color3.fromRGB(200, 100, 0), 70)
@@ -127,30 +126,23 @@ RedListScroll = Instance.new("ScrollingFrame", ContentFrame)
 RedListScroll.Position = UDim2.new(0, 662, 0, 145); RedListScroll.Size = UDim2.new(0, 150, 0, 250); RedListScroll.BackgroundColor3 = Color3.fromRGB(30, 15, 15); RedListScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y; RedListScroll.BorderSizePixel = 0
 Instance.new("UIListLayout", RedListScroll).SortOrder = Enum.SortOrder.LayoutOrder
 
--- SMART PARSER FIX: Обработка цифровых имен (например, .16 -> ["16"])
+-- SMART PARSER: Фикс для имен с цифрами и спецсимволами
 local function getSafePath(obj)
     local p = ""; 
-    pcall(function() 
+    local ok, err = pcall(function() 
         local t = obj; 
         while t and t ~= game do 
             local n = tostring(t.Name); 
-            -- Если имя начинается с цифры или имеет спецсимволы, используем скобки
             local safeName = (n:match("^%d") or n:match("[%s%W]")) and '["'..n..'"]' or n
             
-            if p == "" then
-                p = safeName
+            if p == "" then p = safeName
             else
-                -- Если текущий сегмент в скобках, точку перед ним не ставим
-                if safeName:sub(1,1) == "[" then
-                    p = safeName .. "." .. p
-                else
-                    p = safeName .. "." .. p
-                end
+                if safeName:sub(1,1) == "[" then p = safeName .. "." .. p
+                else p = safeName .. "." .. p end
             end
             t = t.Parent 
         end 
     end)
-    -- Финальная очистка двойных точек, которые могут возникнуть при смешивании стилей
     local finalPath = "game." .. p
     return finalPath:gsub("%.%[", "[") 
 end
@@ -188,7 +180,7 @@ local function addLog(rem, args, isSelf, typeLabel)
     end
 
     local argList = {}
-    for i, v in ipairs(args) do table.insert(argList, parseValue(v)) end
+    for i, v in ipairs(args) do argList[#argList + 1] = parseValue(v) end
     local finalArgsStr = table.concat(argList, ", ")
     
     local alreadyExists = false
@@ -210,7 +202,7 @@ local function addLog(rem, args, isSelf, typeLabel)
     local methodName = (typeLabel == "IS" and "InvokeServer" or (typeLabel == "FC" and "FireClient" or "FireServer"))
     local logDetails = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, finalArgsStr, eventPath, methodName, finalArgsStr)
 
-    -- ANTI-SPAM (Keep as requested)
+    -- ANTI-SPAM (FIXED INSERT)
     if not isSelf and not controlMode and antiSpam then
         if (tick() - (AntiSpamCooldowns[eventPath] or 0)) < 0.4 then
             AntiSpamCounts[eventPath] = (AntiSpamCounts[eventPath] or 0) + 1
@@ -218,7 +210,7 @@ local function addLog(rem, args, isSelf, typeLabel)
                 ManualBannedPaths[eventPath] = {guid = generateGUID(), details = "AUTO-BANNED BY ANTI-SPAM\n\n" .. logDetails}
                 local nM = {}
                 for _, m in ipairs(MainMemory) do 
-                    if not (m.path == eventPath and not m.isSelf) then table.insert(nM, m) end 
+                    if not (m.path == eventPath and not m.isSelf) then nM[#nM + 1] = m end 
                 end
                 MainMemory = nM; lastCount = -1; currentSelectionGUID = nil; updateRedListUI(); return 
             end
@@ -227,7 +219,7 @@ local function addLog(rem, args, isSelf, typeLabel)
     end
 
     local data = { guid = generateGUID(), name = tostring(rem.Name), type = typeLabel, isSelf = isSelf, fullText = logDetails, path = eventPath, argsStr = finalArgsStr }
-    table.insert(MainMemory, 1, data)
+    table.insert(MainMemory, 1, data) -- Используем 3 аргумента (индекс 1), это безопасно
 end
 
 -- HOOKS
@@ -262,7 +254,7 @@ DelBtn.MouseButton1Click:Connect(function()
         if not foundInBanList then
             local nM = {}
             for _, m in ipairs(MainMemory) do
-                if m.guid == currentSelectionGUID then targetData = m else table.insert(nM, m) end
+                if m.guid == currentSelectionGUID then targetData = m else nM[#nM+1] = m end
             end
             if targetData then MainMemory = nM end
         end
@@ -285,7 +277,7 @@ BlockBtn.MouseButton1Click:Connect(function()
                     ManualBannedPaths[p] = {guid = d.guid, details = "MANUAL BANNED:\n\n" .. d.fullText}
                     local nM = {}
                     for _, m in ipairs(MainMemory) do 
-                        if not (m.path == p and not m.isSelf) then table.insert(nM, m) end 
+                        if not (m.path == p and not m.isSelf) then nM[#nM+1] = m end 
                     end
                     MainMemory = nM; lastCount = -1; currentSelectionGUID = nil; updateRedListUI(); Details.Text = "Banned."
                     feedback(BlockBtn, "BANNED")
@@ -308,15 +300,15 @@ MinBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- RENDER LOOP
+-- RENDER LOOP (FIXED INSERT)
 task.spawn(function()
     while task.wait(0.5) do
         if not ContentFrame or not ContentFrame.Visible or #MainMemory == lastCount then continue end
         lastCount = #MainMemory; for _, v in pairs(Scroll:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
         
         local sortedMemory = {}
-        for _, d in ipairs(MainMemory) do if d.isSelf then table.insert(sortedMemory, d) end end
-        for _, d in ipairs(MainMemory) do if not d.isSelf then table.insert(sortedMemory, d) end end
+        for _, d in ipairs(MainMemory) do if d.isSelf then sortedMemory[#sortedMemory + 1] = d end end
+        for _, d in ipairs(MainMemory) do if not d.isSelf then sortedMemory[#sortedMemory + 1] = d end end
 
         for i, d in ipairs(sortedMemory) do
             local b = Instance.new("TextButton", Scroll); b.Size = UDim2.new(1, -6, 0, 30); b.LayoutOrder = i
@@ -348,14 +340,14 @@ end)
 local ClearLogBtn = createBotBtn("CLEAR LOG", UDim2.new(0, 432, 0.68, 0), UDim2.new(0, 108, 0, 58), Color3.fromRGB(80, 80, 85))
 ClearLogBtn.MouseButton1Click:Connect(function()
     local nM = {}
-    for _, m in ipairs(MainMemory) do if m.isSelf then table.insert(nM, m) end end
+    for _, m in ipairs(MainMemory) do if m.isSelf then nM[#nM+1] = m end end
     MainMemory = nM; lastCount = -1; feedback(ClearLogBtn, "CLEARED SRV")
 end)
 
 local ClearSelfBtn = createBotBtn("CLEAR SELF", UDim2.new(0, 544, 0.68, 0), UDim2.new(0, 108, 0, 58), Color3.fromRGB(100, 80, 60))
 ClearSelfBtn.MouseButton1Click:Connect(function()
     local nM = {}
-    for _, m in ipairs(MainMemory) do if not m.isSelf then table.insert(nM, m) end end
+    for _, m in ipairs(MainMemory) do if not m.isSelf then nM[#nM+1] = m end end
     MainMemory = nM; lastCount = -1; feedback(ClearSelfBtn, "CLEARED SELF")
 end)
 
