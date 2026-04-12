@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.3.8 - FULL SOURCE - BANLIST OVERRIDE FIX ]] --
+-- [[ KRALLDEN SPY v9.4.1 - FULL SOURCE - SMART PATH PARSER & UI COLORS ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -89,7 +89,7 @@ Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(2
 
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.3.8"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
+Title.Text = "KRALLDEN SPY v9.4.1"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
 
 local MinBtn = Instance.new("TextButton", Header)
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "_"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0
@@ -100,6 +100,7 @@ local function createHeaderBtn(text, offset, color, sizeX)
     return b
 end
 
+-- NEW COLORS (BIARYL / CYAN FOR CONTROL)
 local ControlBtn = createHeaderBtn("CONTROL: ON", -150, Color3.fromRGB(0, 170, 190))
 local SelfBtn = createHeaderBtn("SELF: ON", -235, Color3.fromRGB(45, 90, 45), 80)
 local DelBtn = createHeaderBtn("DEL BTN", -310, Color3.fromRGB(200, 100, 0), 70)
@@ -126,9 +127,32 @@ RedListScroll = Instance.new("ScrollingFrame", ContentFrame)
 RedListScroll.Position = UDim2.new(0, 662, 0, 145); RedListScroll.Size = UDim2.new(0, 150, 0, 250); RedListScroll.BackgroundColor3 = Color3.fromRGB(30, 15, 15); RedListScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y; RedListScroll.BorderSizePixel = 0
 Instance.new("UIListLayout", RedListScroll).SortOrder = Enum.SortOrder.LayoutOrder
 
+-- SMART PARSER FIX: Обработка цифровых имен (например, .16 -> ["16"])
 local function getSafePath(obj)
-    local p = ""; pcall(function() local t = obj; while t and t ~= game do local n = tostring(t.Name); p = (n:match("[%s%W]") and '["'..n..'"]' or n) .. (p ~= "" and "." .. p or ""); t = t.Parent end end)
-    return p ~= "" and "game." .. p:gsub("%.%[", "[") or "game.NilObject"
+    local p = ""; 
+    pcall(function() 
+        local t = obj; 
+        while t and t ~= game do 
+            local n = tostring(t.Name); 
+            -- Если имя начинается с цифры или имеет спецсимволы, используем скобки
+            local safeName = (n:match("^%d") or n:match("[%s%W]")) and '["'..n..'"]' or n
+            
+            if p == "" then
+                p = safeName
+            else
+                -- Если текущий сегмент в скобках, точку перед ним не ставим
+                if safeName:sub(1,1) == "[" then
+                    p = safeName .. "." .. p
+                else
+                    p = safeName .. "." .. p
+                end
+            end
+            t = t.Parent 
+        end 
+    end)
+    -- Финальная очистка двойных точек, которые могут возникнуть при смешивании стилей
+    local finalPath = "game." .. p
+    return finalPath:gsub("%.%[", "[") 
 end
 
 local function addLog(rem, args, isSelf, typeLabel)
@@ -183,10 +207,10 @@ local function addLog(rem, args, isSelf, typeLabel)
 
     if alreadyExists then return end
 
-    local methodName = (typeLabel == "IS" and "InvokeServer" or "FireServer")
+    local methodName = (typeLabel == "IS" and "InvokeServer" or (typeLabel == "FC" and "FireClient" or "FireServer"))
     local logDetails = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, finalArgsStr, eventPath, methodName, finalArgsStr)
 
-    -- ANTI-SPAM
+    -- ANTI-SPAM (Keep as requested)
     if not isSelf and not controlMode and antiSpam then
         if (tick() - (AntiSpamCooldowns[eventPath] or 0)) < 0.4 then
             AntiSpamCounts[eventPath] = (AntiSpamCounts[eventPath] or 0) + 1
@@ -321,7 +345,6 @@ CopyScriptBtn.MouseButton1Click:Connect(function()
     local s = Details.Text:match("Script:\n(.*)"); if s then setclipboard(s); feedback(CopyScriptBtn, "SCRIPT COPIED!") end
 end)
 
--- SPLIT CLEAR BUTTONS
 local ClearLogBtn = createBotBtn("CLEAR LOG", UDim2.new(0, 432, 0.68, 0), UDim2.new(0, 108, 0, 58), Color3.fromRGB(80, 80, 85))
 ClearLogBtn.MouseButton1Click:Connect(function()
     local nM = {}
@@ -336,7 +359,6 @@ ClearSelfBtn.MouseButton1Click:Connect(function()
     MainMemory = nM; lastCount = -1; feedback(ClearSelfBtn, "CLEARED SELF")
 end)
 
--- SMART EXECUTE (READS FROM EDITED TEXTBOX)
 local ExecuteBtn = createBotBtn("EXECUTE", UDim2.new(0, 432, 0.83, 0), nil, Color3.fromRGB(120, 60, 60))
 ExecuteBtn.MouseButton1Click:Connect(function() 
     local s = Details.Text:match("Script:\n(.*)") or Details.Text
