@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.4.2 - FIX: TABLE INSERT & SMART ARG PARSER ]] --
+-- [[ KRALLDEN SPY v9.4.3 - FIX: NATIVE TABLE INSERT & CLEAN ARGS ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -89,7 +89,7 @@ Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(2
 
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.4.2"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
+Title.Text = "KRALLDEN SPY v9.4.3"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
 
 local MinBtn = Instance.new("TextButton", Header)
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "_"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0
@@ -126,7 +126,7 @@ RedListScroll = Instance.new("ScrollingFrame", ContentFrame)
 RedListScroll.Position = UDim2.new(0, 662, 0, 145); RedListScroll.Size = UDim2.new(0, 150, 0, 250); RedListScroll.BackgroundColor3 = Color3.fromRGB(30, 15, 15); RedListScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y; RedListScroll.BorderSizePixel = 0
 Instance.new("UIListLayout", RedListScroll).SortOrder = Enum.SortOrder.LayoutOrder
 
--- SMART PARSER: Фикс для имен с цифрами и спецсимволами
+-- SMART PARSER
 local function getSafePath(obj)
     local p = ""; 
     local ok, err = pcall(function() 
@@ -181,6 +181,8 @@ local function addLog(rem, args, isSelf, typeLabel)
 
     local argList = {}
     for i, v in ipairs(args) do argList[#argList + 1] = parseValue(v) end
+    
+    -- ФИКС ПУСТЫХ СКОБОК: Если аргументов нет, finalArgsStr будет пустой
     local finalArgsStr = table.concat(argList, ", ")
     
     local alreadyExists = false
@@ -200,9 +202,12 @@ local function addLog(rem, args, isSelf, typeLabel)
     if alreadyExists then return end
 
     local methodName = (typeLabel == "IS" and "InvokeServer" or (typeLabel == "FC" and "FireClient" or "FireServer"))
-    local logDetails = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, finalArgsStr, eventPath, methodName, finalArgsStr)
+    
+    -- ФИКС ОТОБРАЖЕНИЯ: Если аргументов нет, пишем "None", а в скрипте оставляем пустые скобки ()
+    local displayArgs = (finalArgsStr == "" and "None" or finalArgsStr)
+    local logDetails = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, displayArgs, eventPath, methodName, finalArgsStr)
 
-    -- ANTI-SPAM (FIXED INSERT)
+    -- ANTI-SPAM
     if not isSelf and not controlMode and antiSpam then
         if (tick() - (AntiSpamCooldowns[eventPath] or 0)) < 0.4 then
             AntiSpamCounts[eventPath] = (AntiSpamCounts[eventPath] or 0) + 1
@@ -219,7 +224,13 @@ local function addLog(rem, args, isSelf, typeLabel)
     end
 
     local data = { guid = generateGUID(), name = tostring(rem.Name), type = typeLabel, isSelf = isSelf, fullText = logDetails, path = eventPath, argsStr = finalArgsStr }
-    table.insert(MainMemory, 1, data) -- Используем 3 аргумента (индекс 1), это безопасно
+    
+    -- ФИКС СТРОКИ 191: Ручной сдвиг таблицы вместо table.insert(t, 1, v)
+    -- Это предотвратит ошибку "number expected, got string" на капризных инжекторах
+    for i = #MainMemory, 1, -1 do
+        MainMemory[i + 1] = MainMemory[i]
+    end
+    MainMemory[1] = data
 end
 
 -- HOOKS
@@ -300,7 +311,7 @@ MinBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- RENDER LOOP (FIXED INSERT)
+-- RENDER LOOP
 task.spawn(function()
     while task.wait(0.5) do
         if not ContentFrame or not ContentFrame.Visible or #MainMemory == lastCount then continue end
