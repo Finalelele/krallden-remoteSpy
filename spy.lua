@@ -5,11 +5,13 @@ local playerGui = player:WaitForChild("PlayerGui")
 
 if playerGui:FindFirstChild("KralldenSpyUI") then playerGui.KralldenSpyUI:Destroy() end
 for _, gui in ipairs(game.CoreGui:GetChildren()) do
-    if gui.Name == "KralldenSpyUI" then
-        gui:Destroy()
-    elseif gui:IsA("Folder") and gui:FindFirstChild("KralldenSpyUI") then
-        gui:Destroy()
-    end
+    pcall(function()
+        if gui.Name == "KralldenSpyUI" then
+            gui:Destroy()
+        elseif gui:FindFirstChild("KralldenSpyUI") then
+            gui.KralldenSpyUI:Destroy()
+        end
+    end)
 end
 
 local targetParent = (gethui and gethui()) or (game:GetService("CoreGui"):FindFirstChild("RobloxGui")) or playerGui
