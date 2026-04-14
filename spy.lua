@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.4.8 - CLEAN VERSION WITH ANTI-HIDE ]] --
+-- [[ KRALLDEN SPY v9.4.9 - BUFFER SUPPORT & ANTI-HIDE ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -21,7 +21,7 @@ Main.Position = UDim2.new(0.5, -410, 0.5, -220); Main.Active = true; Main.Dragga
 
 local MainMemory, PathFilter, ManualBannedPaths = {}, {}, {}
 local AntiSpamCooldowns, AntiSpamCounts = {}, {}
-local selfMode, controlMode, antiSpam = true, true, true
+local selfMode, controlMode, antiSpam, spyBuffer = true, true, true, true
 local spyFS, spyFC, spyIS = true, false, false
 local currentSelectionGUID, lastCount = nil, 0
 local isMin = false
@@ -87,7 +87,7 @@ Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(2
 
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.4.8"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
+Title.Text = "KRALLDEN SPY v9.4.9"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
 
 local MinBtn = Instance.new("TextButton", Header)
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "_"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0
@@ -98,12 +98,13 @@ local function createHeaderBtn(text, offset, color, sizeX)
     return b
 end
 
-local ControlBtn = createHeaderBtn("CONTROL: ON", -150, Color3.fromRGB(0, 170, 190))
-local SelfBtn = createHeaderBtn("SELF: ON", -235, Color3.fromRGB(45, 90, 45), 80)
-local DelBtn = createHeaderBtn("DEL BTN", -310, Color3.fromRGB(200, 100, 0), 70)
-local AntiSpamBtn = createHeaderBtn("ANTI-SPAM: ON", -420, Color3.fromRGB(180, 150, 40))
+local BufferBtn = createHeaderBtn("BUFFER: ON", -135, Color3.fromRGB(70, 70, 150), 85) -- Новая кнопка
+local ControlBtn = createHeaderBtn("CONTROL: ON", -240, Color3.fromRGB(0, 170, 190), 100)
+local SelfBtn = createHeaderBtn("SELF: ON", -325, Color3.fromRGB(45, 90, 45), 80)
+local DelBtn = createHeaderBtn("DEL BTN", -400, Color3.fromRGB(200, 100, 0), 70)
+local AntiSpamBtn = createHeaderBtn("ANTI-SPAM: ON", -510, Color3.fromRGB(180, 150, 40))
 AntiSpamBtn.Visible = false
-local BlockBtn = createHeaderBtn("BLOCK EVENT", -530, Color3.fromRGB(150, 50, 50))
+local BlockBtn = createHeaderBtn("BLOCK EVENT", -620, Color3.fromRGB(150, 50, 50))
 BlockBtn.Visible = false
 
 ContentFrame = Instance.new("Frame", Main)
@@ -172,7 +173,21 @@ local function addLog(rem, args, isSelf, typeLabel)
             if tn == "CFrame" then return "CFrame.new(" .. tostring(v) .. ")"
             elseif tn == "Vector3" then return "Vector3.new(" .. tostring(v) .. ")"
             elseif tn == "Color3" then return "Color3.new(" .. tostring(v) .. ")"
-            elseif tn == "Instance" then return getSafePath(v) end
+            elseif tn == "Instance" then return getSafePath(v)
+            elseif tn == "buffer" then -- [[ НОВЫЙ ФУНКЦИОНАЛ БУФЕРА ]] --
+                if spyBuffer then
+                    local len = buffer.len(v)
+                    local hex = ""
+                    for i = 0, math.min(len - 1, 32) do -- Ограничим вывод 32 байтами для чистоты лога
+                        hex = hex .. string.format("%02X ", buffer.readu8(v, i))
+                    end
+                    if len > 33 then hex = hex .. "..." end
+                    local strTry = buffer.tostring(v):gsub("[%c%z]", ".") -- Заменяем непечатные символы точками
+                    return string.format("buffer(%d) [Hex: %s] [Str: %s]", len, hex, strTry)
+                else
+                    return "buffer(" .. buffer.len(v) .. ")"
+                end
+            end
             return tostring(v)
         else return tostring(v) end
     end
@@ -238,6 +253,12 @@ mt.__namecall = newcclosure(function(self, ...)
 end); setreadonly(mt, true)
 
 -- INTERACTIONS
+BufferBtn.MouseButton1Click:Connect(function()
+    spyBuffer = not spyBuffer
+    BufferBtn.Text = "BUFFER: " .. (spyBuffer and "ON" or "OFF")
+    BufferBtn.BackgroundColor3 = spyBuffer and Color3.fromRGB(70, 70, 150) or Color3.fromRGB(80, 80, 85)
+end)
+
 ControlBtn.MouseButton1Click:Connect(function() 
     controlMode = not controlMode
     ControlBtn.Text = "CONTROL: "..(controlMode and "ON" or "OFF")
@@ -296,11 +317,11 @@ MinBtn.MouseButton1Click:Connect(function()
     isMin = not isMin
     local curX, curY = Main.AbsolutePosition.X + Main.AbsoluteSize.X, Main.AbsolutePosition.Y
     if isMin then
-        ContentFrame.Visible = false; ControlBtn.Visible = false; SelfBtn.Visible = false; AntiSpamBtn.Visible = false; BlockBtn.Visible = false; DelBtn.Visible = false
+        ContentFrame.Visible = false; ControlBtn.Visible = false; SelfBtn.Visible = false; AntiSpamBtn.Visible = false; BlockBtn.Visible = false; DelBtn.Visible = false; BufferBtn.Visible = false
         Main:TweenSizeAndPosition(UDim2.new(0, 250, 0, 35), UDim2.new(0, curX - 250, 0, curY), "Out", "Quad", 0.15, true); MinBtn.Text = "+"
     else
         Main:TweenSizeAndPosition(UDim2.new(0, 820, 0, 440), UDim2.new(0, curX - 820, 0, curY), "Out", "Quad", 0.15, true, function()
-            ContentFrame.Visible = true; ControlBtn.Visible = true; SelfBtn.Visible = true; DelBtn.Visible = true; if not controlMode then AntiSpamBtn.Visible = true; BlockBtn.Visible = true end
+            ContentFrame.Visible = true; ControlBtn.Visible = true; SelfBtn.Visible = true; DelBtn.Visible = true; BufferBtn.Visible = true; if not controlMode then AntiSpamBtn.Visible = true; BlockBtn.Visible = true end
         end); MinBtn.Text = "_"; lastCount = -1
     end
 end)
