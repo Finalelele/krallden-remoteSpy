@@ -36,7 +36,7 @@ local MainMemory, PathFilter, ManualBannedPaths = {}, {}, {}
 local AntiSpamCooldowns, AntiSpamCounts = {}, {}
 local selfMode, controlMode, antiSpam = true, true, true
 local spyFS, spyFC, spyIS = true, false, false
-local sortEnabled = false -- Добавлен флаг для сортировки
+local sortEnabled = false
 local currentSelectionGUID, lastCount = nil, 0
 local isMin = false
 
@@ -76,6 +76,46 @@ local function refreshSelectionColors()
     end
 end
 
+-- Функция форматирования сортировки
+local function formatTableVisual(val, indent)
+    indent = indent or 0; local tab = string.rep("    ", indent); local t = typeof(val)
+    if t == "table" then
+        local res = "{\n"; local isArray = true; local count = 0
+        for k, v in pairs(val) do count = count + 1; if type(k) ~= "number" or k ~= count then isArray = false break end end
+        for k, v in pairs(val) do
+            local keyStr = isArray and "" or (type(k) == "string" and k .. " = " or "[" .. tostring(k) .. "] = ")
+            res = res .. tab .. "    " .. keyStr .. formatTableVisual(v, indent + 1) .. ",\n"
+        end
+        return res .. tab .. "}"
+    elseif t == "string" then return '"' .. val .. '"'
+    elseif t == "Vector3" then return string.format("Vector3.new(%.3f, %.3f, %.3f)", val.X, val.Y, val.Z)
+    elseif t == "CFrame" then return "CFrame.new(" .. tostring(val) .. ")"
+    -- SMART PARSER для Instance
+    elseif t == "Instance" then
+        local p = ""; 
+        pcall(function() 
+            local t_obj = val; 
+            while t_obj and t_obj ~= game do 
+                local n = tostring(t_obj.Name); 
+                local safeName = (n:match("^%d") or n:match("[%s%W]")) and '["'..n..'"]' or n
+                if p == "" then p = safeName
+                else p = (safeName:sub(1,1) == "[" and safeName .. "." .. p or safeName .. "." .. p) end
+                t_obj = t_obj.Parent 
+            end 
+        end)
+        return ("game." .. p):gsub("%.%[", "[")
+    else return tostring(val) end
+end
+
+-- Функция получения текста с учетом сортировки (универсальная для логов и бан-листа)
+local function getSortedDetails(d)
+    local prefix = d.prefix or ""
+    if not sortEnabled then return prefix .. d.fullText end
+    local displayArgs = formatTableVisual(d.rawArgs)
+    local methodName = (d.type == "IS" and "InvokeServer" or (d.type == "FC" and "FireClient" or "FireServer"))
+    return prefix .. string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", d.type, d.path, displayArgs, d.path, methodName, d.argsStr)
+end
+
 local function updateRedListUI()
     if not RedListScroll then return end
     for _, v in pairs(RedListScroll:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
@@ -90,7 +130,7 @@ local function updateRedListUI()
         
         b.MouseButton1Click:Connect(function() 
             currentSelectionGUID = data.guid
-            Details.Text = data.details 
+            Details.Text = getSortedDetails(data) 
             refreshSelectionColors()
         end)
     end
@@ -128,12 +168,14 @@ Scroll = Instance.new("ScrollingFrame", ContentFrame)
 Scroll.Position = UDim2.new(0, 8, 0, 8); Scroll.Size = UDim2.new(0, 190, 1, -16); Scroll.BackgroundColor3 = Color3.fromRGB(20, 20, 25); Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y; Scroll.BorderSizePixel = 0
 Instance.new("UIListLayout", Scroll).SortOrder = Enum.SortOrder.LayoutOrder
 
--- Добавлен ScrollingFrame для Details
+-- Исправленный ScrollingFrame для Details
 DetailsScroll = Instance.new("ScrollingFrame", ContentFrame)
 DetailsScroll.Position = UDim2.new(0, 205, 0, 8); DetailsScroll.Size = UDim2.new(0, 448, 0, 255); DetailsScroll.BackgroundColor3 = Color3.fromRGB(10, 10, 12); DetailsScroll.BorderSizePixel = 0; DetailsScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y; DetailsScroll.ScrollingDirection = Enum.ScrollingDirection.Y; DetailsScroll.ScrollBarThickness = 4
 
 Details = Instance.new("TextBox", DetailsScroll)
-Details.Size = UDim2.new(1, -10, 1, 0); Details.BackgroundTransparency = 1; Details.TextColor3 = Color3.new(1, 1, 1); Details.MultiLine = true; Details.TextWrapped = true; Details.TextEditable = true; Details.Font = Enum.Font.Code; Details.TextSize = 12; Details.TextXAlignment = 0; Details.TextYAlignment = 0; Details.ClearTextOnFocus = false
+-- Важно: высота 0 и AutomaticSize.Y позволяют полю растягиваться до самого низа содержимого
+Details.Size = UDim2.new(1, -10, 0, 0); Details.AutomaticSize = Enum.AutomaticSize.Y
+Details.BackgroundTransparency = 1; Details.TextColor3 = Color3.new(1, 1, 1); Details.MultiLine = true; Details.TextWrapped = true; Details.TextEditable = true; Details.Font = Enum.Font.Code; Details.TextSize = 12; Details.TextXAlignment = 0; Details.TextYAlignment = 0; Details.ClearTextOnFocus = false
 
 local BanListTitle = Instance.new("TextLabel", ContentFrame)
 BanListTitle.Size = UDim2.new(0, 150, 0, 20); BanListTitle.Position = UDim2.new(0, 662, 0, 125); BanListTitle.BackgroundTransparency = 1
@@ -162,32 +204,6 @@ local function getSafePath(obj)
     end)
     local finalPath = "game." .. p
     return finalPath:gsub("%.%[", "[") 
-end
-
--- Функция форматирования сортировки (без цифр для массивов)
-local function formatTableVisual(val, indent)
-    indent = indent or 0; local tab = string.rep("    ", indent); local t = typeof(val)
-    if t == "table" then
-        local res = "{\n"; local isArray = true; local count = 0
-        for k, v in pairs(val) do count = count + 1; if type(k) ~= "number" or k ~= count then isArray = false break end end
-        for k, v in pairs(val) do
-            local keyStr = isArray and "" or (type(k) == "string" and k .. " = " or "[" .. tostring(k) .. "] = ")
-            res = res .. tab .. "    " .. keyStr .. formatTableVisual(v, indent + 1) .. ",\n"
-        end
-        return res .. tab .. "}"
-    elseif t == "string" then return '"' .. val .. '"'
-    elseif t == "Vector3" then return string.format("Vector3.new(%.3f, %.3f, %.3f)", val.X, val.Y, val.Z)
-    elseif t == "CFrame" then return "CFrame.new(" .. tostring(val) .. ")"
-    elseif t == "Instance" then return getSafePath(val)
-    else return tostring(val) end
-end
-
--- Функция получения текста с учетом сортировки
-local function getSortedDetails(d)
-    if not sortEnabled then return d.fullText end
-    local displayArgs = formatTableVisual(d.rawArgs)
-    local methodName = (d.type == "IS" and "InvokeServer" or (d.type == "FC" and "FireClient" or "FireServer"))
-    return string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", d.type, d.path, displayArgs, d.path, methodName, d.argsStr)
 end
 
 local function addLog(rem, args, isSelf, typeLabel)
@@ -247,12 +263,20 @@ local function addLog(rem, args, isSelf, typeLabel)
     local displayArgs = (finalArgsStr == "" and "None" or finalArgsStr)
     local logDetails = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, displayArgs, eventPath, methodName, finalArgsStr)
 
-    -- ANTI-SPAM
+    -- ANTI-SPAM (Обновлено для поддержки rawArgs в бан-листе)
     if not isSelf and not controlMode and antiSpam then
         if (tick() - (AntiSpamCooldowns[eventPath] or 0)) < 0.4 then
             AntiSpamCounts[eventPath] = (AntiSpamCounts[eventPath] or 0) + 1
             if AntiSpamCounts[eventPath] >= 4 then
-                ManualBannedPaths[eventPath] = {guid = generateGUID(), details = "AUTO-BANNED BY ANTI-SPAM\n\n" .. logDetails}
+                ManualBannedPaths[eventPath] = {
+                    guid = generateGUID(), 
+                    prefix = "AUTO-BANNED BY ANTI-SPAM\n\n",
+                    fullText = logDetails,
+                    rawArgs = args,
+                    type = typeLabel,
+                    path = eventPath,
+                    argsStr = finalArgsStr
+                }
                 local nM = {}
                 for _, m in ipairs(MainMemory) do 
                     if not (m.path == eventPath and not m.isSelf) then nM[#nM + 1] = m end 
@@ -263,7 +287,6 @@ local function addLog(rem, args, isSelf, typeLabel)
         AntiSpamCooldowns[eventPath] = tick()
     end
 
-    -- Добавлен rawArgs для работы сортировщика
     local data = { guid = generateGUID(), name = tostring(rem.Name), type = typeLabel, isSelf = isSelf, fullText = logDetails, path = eventPath, argsStr = finalArgsStr, rawArgs = args }
     
     -- РУЧНОЙ СДВИГ ТАБЛИЦЫ
@@ -325,7 +348,16 @@ BlockBtn.MouseButton1Click:Connect(function()
             if d.guid == currentSelectionGUID and not d.isSelf then
                 local p = d.path
                 if p then
-                    ManualBannedPaths[p] = {guid = d.guid, details = "MANUAL BANNED:\n\n" .. d.fullText}
+                    -- Сохраняем rawArgs и прочее в бан лист для работы SORT
+                    ManualBannedPaths[p] = {
+                        guid = d.guid, 
+                        prefix = "MANUAL BANNED:\n\n",
+                        fullText = d.fullText,
+                        rawArgs = d.rawArgs,
+                        type = d.type,
+                        path = d.path,
+                        argsStr = d.argsStr
+                    }
                     local nM = {}
                     for _, m in ipairs(MainMemory) do 
                         if not (m.path == p and not m.isSelf) then nM[#nM+1] = m end 
@@ -378,21 +410,29 @@ local function createBotBtn(text, pos, size, color)
     local b = Instance.new("TextButton", ContentFrame); b.Size = size or UDim2.new(0, 220, 0, 58); b.Position = pos; b.BackgroundColor3 = color; b.Text = text; b.TextColor3 = Color3.new(1,1,1); b.Font = Enum.Font.SourceSansBold; b.TextSize = 14; b.BorderSizePixel = 0; return b
 end
 
--- Нижние кнопки с добавленным SortBtn
 local CopyArgsBtn = createBotBtn("COPY ARGS", UDim2.new(0, 205, 0.68, 0), UDim2.new(0, 95, 0, 58), Color3.fromRGB(45, 90, 45))
 CopyArgsBtn.MouseButton1Click:Connect(function() 
     local a = Details.Text:match("Args: (.-)\n\nScript"); 
     if a then setclipboard(a); feedback(CopyArgsBtn, "COPIED!") end
 end)
 
-local SortBtn = createBotBtn("SORT: OFF", UDim2.new(0, 305, 0.68, 0), UDim2.new(0, 120, 0, 58), Color3.fromRGB(130, 70, 220))
+-- Обновленная кнопка SORT с уникальным цветом и поддержкой бан-листа
+local SortBtn = createBotBtn("SORT: OFF", UDim2.new(0, 305, 0.68, 0), UDim2.new(0, 120, 0, 58), Color3.fromRGB(40, 70, 70))
 SortBtn.MouseButton1Click:Connect(function()
     sortEnabled = not sortEnabled
     SortBtn.Text = "SORT: "..(sortEnabled and "ON" or "OFF")
-    SortBtn.BackgroundColor3 = sortEnabled and Color3.fromRGB(100, 50, 200) or Color3.fromRGB(130, 70, 220)
+    SortBtn.BackgroundColor3 = sortEnabled and Color3.fromRGB(0, 140, 140) or Color3.fromRGB(40, 70, 70)
     if currentSelectionGUID then
+        local found = false
+        -- Ищем в основных логах
         for _, m in ipairs(MainMemory) do
-            if m.guid == currentSelectionGUID then Details.Text = getSortedDetails(m) break end
+            if m.guid == currentSelectionGUID then Details.Text = getSortedDetails(m); found = true; break end
+        end
+        -- Если не нашли, ищем в бан-листе
+        if not found then
+            for _, data in pairs(ManualBannedPaths) do
+                if data.guid == currentSelectionGUID then Details.Text = getSortedDetails(data); break end
+            end
         end
     end
 end)
