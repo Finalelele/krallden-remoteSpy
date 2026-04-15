@@ -43,13 +43,12 @@ local function generateGUID() return tostring(tick()) .. "-" .. tostring(math.ra
 
 local RedListScroll, Scroll, Details, ContentFrame, DetailsScroll
 
--- ФУНКЦИЯ PRETTY PRINT (ИСПРАВЛЕННАЯ)
+-- ФУНКЦИЯ PRETTY PRINT (УЛУЧШЕННАЯ ДЛЯ CFRAME)
 local function formatTable(t, indent)
     indent = indent or 0
     local spacing = string.rep("    ", indent + 1)
     local result = "{\n"
     
-    -- Проверка: является ли таблица простым списком (массивом)
     local isArray = true
     local count = 0
     for k, _ in pairs(t) do
@@ -65,9 +64,14 @@ local function formatTable(t, indent)
         if type(v) == "table" then
             valStr = formatTable(v, indent + 1)
         elseif typeof(v) == "CFrame" then
-            valStr = "CFrame.new(" .. tostring(v) .. ")"
+            -- Разбиваем CFrame на части, чтобы не было "каши"
+            local components = {v:GetComponents()}
+            for i, comp in ipairs(components) do 
+                components[i] = string.format("%.3f", comp):gsub("%.?0+$", "") 
+            end
+            valStr = "CFrame.new(" .. table.concat(components, ", ") .. ")"
         elseif typeof(v) == "Vector3" then
-            valStr = "Vector3.new(" .. tostring(v) .. ")"
+            valStr = string.format("Vector3.new(%.3f, %.3f, %.3f)", v.X, v.Y, v.Z):gsub("%.?0+,", ",")
         elseif typeof(v) == "Color3" then
             valStr = "Color3.new(" .. tostring(v) .. ")"
         elseif type(v) == "string" then
@@ -77,10 +81,8 @@ local function formatTable(t, indent)
         end
 
         if isArray then
-            -- Убираем [1], [2] для обычных списков
             result = result .. spacing .. valStr .. ",\n"
         else
-            -- Оставляем ключи для словарей
             local keyStr = type(k) == "string" and '["'..k..'"]' or "["..tostring(k).."]"
             result = result .. spacing .. keyStr .. " = " .. valStr .. ",\n"
         end
@@ -116,9 +118,14 @@ local function updateDetailsText()
         if data.isBannedLog then
             Details.Text = data.fullText
         else
+            -- Если включен Sort, используем красивый формат для аргументов
             local argDisplay = sortEnabled and formatTable(data.rawArgs) or data.argsStr
             local methodName = (data.type == "IS" and "InvokeServer" or (data.type == "FC" and "FireClient" or "FireServer"))
-            Details.Text = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", data.type, data.path, argDisplay, data.path, methodName, data.argsStr)
+            
+            -- Скрипт тоже форматируем красиво при включенном Sort
+            local scriptArgs = sortEnabled and formatTable(data.rawArgs):gsub("^\n", "") or data.argsStr
+            Details.Text = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", 
+                data.type, data.path, argDisplay, data.path, methodName, scriptArgs)
         end
     end
 end
@@ -140,17 +147,18 @@ local function refreshSelectionColors()
     end
 end
 
--- ОБНОВЛЕНИЕ RED LIST С СОРТИРОВКОЙ
+-- ОБНОВЛЕНИЕ RED LIST С ПРАВИЛЬНОЙ СОРТИРОВКОЙ
 local function updateRedListUI()
     if not RedListScroll then return end
     for _, v in pairs(RedListScroll:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
     
-    -- Собираем пути для сортировки
     local paths = {}
     for path, _ in pairs(ManualBannedPaths) do table.insert(paths, path) end
     
     if sortEnabled then
-        table.sort(paths)
+        table.sort(paths, function(a, b)
+            return a:lower() < b:lower()
+        end)
     end
 
     for _, path in ipairs(paths) do
@@ -202,14 +210,13 @@ Scroll = Instance.new("ScrollingFrame", ContentFrame)
 Scroll.Position = UDim2.new(0, 8, 0, 8); Scroll.Size = UDim2.new(0, 190, 1, -16); Scroll.BackgroundColor3 = Color3.fromRGB(20, 20, 25); Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y; Scroll.BorderSizePixel = 0
 Instance.new("UIListLayout", Scroll).SortOrder = Enum.SortOrder.LayoutOrder
 
--- СКРОЛЛ ДЛЯ DETAILS
 DetailsScroll = Instance.new("ScrollingFrame", ContentFrame)
 DetailsScroll.Position = UDim2.new(0, 205, 0, 8); DetailsScroll.Size = UDim2.new(0, 448, 0, 255); DetailsScroll.BackgroundColor3 = Color3.fromRGB(10, 10, 12); DetailsScroll.BorderSizePixel = 0; DetailsScroll.ScrollBarThickness = 4; DetailsScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 
 Details = Instance.new("TextBox", DetailsScroll)
 Details.Size = UDim2.new(1, -10, 1, 0); Details.BackgroundTransparency = 1; Details.TextColor3 = Color3.new(1, 1, 1); Details.MultiLine = true; Details.TextWrapped = true; Details.TextEditable = true; Details.Font = Enum.Font.Code; Details.TextSize = 12; Details.TextXAlignment = 0; Details.TextYAlignment = 0; Details.ClearTextOnFocus = false; Details.AutomaticSize = Enum.AutomaticSize.Y
 
--- КНОПКА SORT ВНУТРИ DETAILS
+-- КНОПКА SORT
 local SortBtn = Instance.new("TextButton", ContentFrame)
 SortBtn.Size = UDim2.new(0, 60, 0, 20); SortBtn.Position = UDim2.new(0, 590, 0, 12); SortBtn.BackgroundColor3 = Color3.fromRGB(40, 60, 150); SortBtn.Text = "SORT: OFF"; SortBtn.TextColor3 = Color3.new(1,1,1); SortBtn.Font = Enum.Font.SourceSansBold; SortBtn.TextSize = 10; SortBtn.ZIndex = 15; SortBtn.BorderSizePixel = 0
 
@@ -218,7 +225,7 @@ SortBtn.MouseButton1Click:Connect(function()
     SortBtn.Text = "SORT: " .. (sortEnabled and "ON" or "OFF")
     SortBtn.BackgroundColor3 = sortEnabled and Color3.fromRGB(30, 120, 255) or Color3.fromRGB(40, 60, 150)
     updateDetailsText()
-    updateRedListUI() -- Добавлено: обновляем бан-лист при смене сортировки
+    updateRedListUI() 
 end)
 
 local BanListTitle = Instance.new("TextLabel", ContentFrame)
@@ -412,7 +419,6 @@ local function createBotBtn(text, pos, size, color)
     local b = Instance.new("TextButton", ContentFrame); b.Size = size or UDim2.new(0, 220, 0, 58); b.Position = pos; b.BackgroundColor3 = color; b.Text = text; b.TextColor3 = Color3.new(1,1,1); b.Font = Enum.Font.SourceSansBold; b.TextSize = 14; b.BorderSizePixel = 0; return b
 end
 
--- Нижние кнопки
 local CopyArgsBtn = createBotBtn("COPY ARGS", UDim2.new(0, 205, 0.68, 0), nil, Color3.fromRGB(45, 90, 45))
 CopyArgsBtn.MouseButton1Click:Connect(function() 
     local a = Details.Text:match("Args: (.-)\n\nScript"); 
