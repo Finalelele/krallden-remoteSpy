@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.5.5 - ULTIMATE SCROLL & RENDERING FIX ]] --
+-- [[ KRALLDEN SPY v9.5.6 - SCROLL & RENDER FINAL FIX ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -55,12 +55,12 @@ local function feedback(button, tempText)
     end)
 end
 
--- ФУНКЦИЯ ОБНОВЛЕНИЯ СКРОЛЛА (Аналогично левому списку)
+-- ФУНКЦИЯ ОБНОВЛЕНИЯ СКРОЛЛА (Гарантирует прорисовку всего текста)
 local function updateDetailsCanvas()
     if DetailsScroll and Details then
-        -- Небольшая задержка, чтобы движок Roblox успел посчитать размер текста
         task.defer(function()
-            DetailsScroll.CanvasSize = UDim2.new(0, 0, 0, Details.TextBounds.Y + 40)
+            -- Принудительно выставляем размер Canvas по размеру контента
+            DetailsScroll.CanvasSize = UDim2.new(0, 0, 0, Details.TextBounds.Y + 50)
         end)
     end
 end
@@ -146,9 +146,9 @@ end
 local Header = Instance.new("Frame", Main)
 Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(25, 25, 30); Header.ZIndex = 10; Header.BorderSizePixel = 0
 local Title = Instance.new("TextLabel", Header)
-Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0); Title.Text = "KRALLDEN SPY v9.5.5"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
+Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0); Title.Text = "KRALLDEN SPY v9.5.6"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
 local MinBtn = Instance.new("TextButton", Header)
-MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "-"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0
+MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "_"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0
 
 local function createHeaderBtn(text, offset, color, sizeX)
     local b = Instance.new("TextButton", Header)
@@ -168,24 +168,30 @@ Scroll = Instance.new("ScrollingFrame", ContentFrame)
 Scroll.Position = UDim2.new(0, 8, 0, 8); Scroll.Size = UDim2.new(0, 190, 1, -16); Scroll.BackgroundColor3 = Color3.fromRGB(20, 20, 25); Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y; Scroll.BorderSizePixel = 0; Scroll.ScrollBarThickness = 4
 Instance.new("UIListLayout", Scroll).SortOrder = Enum.SortOrder.LayoutOrder
 
--- DETAILS SCROLL
+-- DETAILS SCROLL (Идентично левому списку для стабильности)
 DetailsScroll = Instance.new("ScrollingFrame", ContentFrame)
 DetailsScroll.Position = UDim2.new(0, 205, 0, 8); DetailsScroll.Size = UDim2.new(0, 448, 0, 255); DetailsScroll.BackgroundColor3 = Color3.fromRGB(10, 10, 12); DetailsScroll.BorderSizePixel = 0
-DetailsScroll.ScrollBarThickness = 6; DetailsScroll.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 120); DetailsScroll.ClipsDescendants = true
--- Включаем автоматический размер как в левом списке
+DetailsScroll.ScrollBarThickness = 6; DetailsScroll.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 120)
 DetailsScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 DetailsScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-DetailsScroll.VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar 
 
-local dLayout = Instance.new("UIListLayout", DetailsScroll) 
+local dLayout = Instance.new("UIListLayout", DetailsScroll)
 dLayout.SortOrder = Enum.SortOrder.LayoutOrder
+dLayout.Padding = UDim.new(0, 5)
 
-Details = Instance.new("TextBox", DetailsScroll)
--- Важно: ставим AutomaticSize.Y, чтобы TextBox сам рос вниз от текста
-Details.Size = UDim2.new(1, 0, 0, 0); Details.AutomaticSize = Enum.AutomaticSize.Y; 
+-- Контейнер для текста с отступами (решает проблему Padding в консоли)
+local DetailsContainer = Instance.new("Frame", DetailsScroll)
+DetailsContainer.Size = UDim2.new(1, 0, 0, 0); DetailsContainer.AutomaticSize = Enum.AutomaticSize.Y; DetailsContainer.BackgroundTransparency = 1; DetailsContainer.BorderSizePixel = 0
+
+local dPadding = Instance.new("UIPadding", DetailsContainer)
+dPadding.PaddingLeft = UDim.new(0, 10); dPadding.PaddingRight = UDim.new(0, 10); dPadding.PaddingTop = UDim.new(0, 5); dPadding.PaddingBottom = UDim.new(0, 20)
+
+Details = Instance.new("TextBox", DetailsContainer)
+Details.Size = UDim2.new(1, 0, 0, 0); Details.AutomaticSize = Enum.AutomaticSize.Y
 Details.BackgroundTransparency = 1; Details.TextColor3 = Color3.new(1, 1, 1); Details.MultiLine = true; Details.TextWrapped = true; Details.TextEditable = true; Details.Font = Enum.Font.Code; Details.TextSize = 12; Details.TextXAlignment = 0; Details.TextYAlignment = 0; Details.ClearTextOnFocus = false
-local dPadding = Instance.new("UIPadding", Details)
-dPadding.PaddingLeft = UDim.new(0, 10); dPadding.PaddingRight = UDim.new(0, 10); dPadding.PaddingTop = UDim.new(0, 5); dPadding.PaddingBottom = UDim.new(0, 5)
+
+-- Принудительное обновление при изменении текста
+Details:GetPropertyChangedSignal("Text"):Connect(updateDetailsCanvas)
 
 local BanListTitle = Instance.new("TextLabel", ContentFrame)
 BanListTitle.Size = UDim2.new(0, 150, 0, 20); BanListTitle.Position = UDim2.new(0, 662, 0, 125); BanListTitle.BackgroundTransparency = 1; BanListTitle.Text = "BAN LIST"; BanListTitle.TextColor3 = Color3.fromRGB(255, 100, 100); BanListTitle.Font = Enum.Font.SourceSansBold; BanListTitle.TextSize = 14
