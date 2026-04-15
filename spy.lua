@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.5.2 - CRITICAL FIX & FULL LOGIC ]] --
+-- [[ KRALLDEN SPY v9.5.3 - ULTIMATE SCROLL & RENDERING FIX ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -135,7 +135,7 @@ end
 local Header = Instance.new("Frame", Main)
 Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(25, 25, 30); Header.ZIndex = 10; Header.BorderSizePixel = 0
 local Title = Instance.new("TextLabel", Header)
-Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0); Title.Text = "KRALLDEN SPY v9.5.2"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
+Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0); Title.Text = "KRALLDEN SPY v9.5.3"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
 local MinBtn = Instance.new("TextButton", Header)
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "_"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0
 
@@ -157,16 +157,20 @@ Scroll = Instance.new("ScrollingFrame", ContentFrame)
 Scroll.Position = UDim2.new(0, 8, 0, 8); Scroll.Size = UDim2.new(0, 190, 1, -16); Scroll.BackgroundColor3 = Color3.fromRGB(20, 20, 25); Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y; Scroll.BorderSizePixel = 0; Scroll.ScrollBarThickness = 4
 Instance.new("UIListLayout", Scroll).SortOrder = Enum.SortOrder.LayoutOrder
 
--- DETAILS SCROLL (ПОЛНЫЙ ФИКС)
+-- DETAILS SCROLL (НОВАЯ СИСТЕМА ПРОКРУТКИ)
 DetailsScroll = Instance.new("ScrollingFrame", ContentFrame)
 DetailsScroll.Position = UDim2.new(0, 205, 0, 8); DetailsScroll.Size = UDim2.new(0, 448, 0, 255); DetailsScroll.BackgroundColor3 = Color3.fromRGB(10, 10, 12); DetailsScroll.BorderSizePixel = 0
-DetailsScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y; DetailsScroll.CanvasSize = UDim2.new(0, 0, 0, 0); DetailsScroll.ScrollBarThickness = 6; DetailsScroll.ScrollBarImageColor3 = Color3.fromRGB(80, 80, 100)
+DetailsScroll.ScrollBarThickness = 6; DetailsScroll.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 120); DetailsScroll.ClipsDescendants = true
+DetailsScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y; DetailsScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+DetailsScroll.VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar -- Решает проблему перекрытия
+
+local dLayout = Instance.new("UIListLayout", DetailsScroll) -- Заставляет скролл видеть высоту текста
+dLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
 Details = Instance.new("TextBox", DetailsScroll)
-Details.Size = UDim2.new(1, -15, 0, 0); Details.AutomaticSize = Enum.AutomaticSize.Y; Details.BackgroundTransparency = 1; Details.TextColor3 = Color3.new(1, 1, 1); Details.MultiLine = true; Details.TextWrapped = true; Details.TextEditable = true; Details.Font = Enum.Font.Code; Details.TextSize = 12; Details.TextXAlignment = 0; Details.TextYAlignment = 0; Details.ClearTextOnFocus = false
--- Использование UIPadding вместо прямого PaddingLeft
+Details.Size = UDim2.new(1, 0, 0, 0); Details.AutomaticSize = Enum.AutomaticSize.Y; Details.BackgroundTransparency = 1; Details.TextColor3 = Color3.new(1, 1, 1); Details.MultiLine = true; Details.TextWrapped = true; Details.TextEditable = true; Details.Font = Enum.Font.Code; Details.TextSize = 12; Details.TextXAlignment = 0; Details.TextYAlignment = 0; Details.ClearTextOnFocus = false
 local dPadding = Instance.new("UIPadding", Details)
-dPadding.PaddingLeft = UDim.new(0, 8); dPadding.PaddingRight = UDim.new(0, 8); dPadding.PaddingTop = UDim.new(0, 5); dPadding.PaddingBottom = UDim.new(0, 5)
+dPadding.PaddingLeft = UDim.new(0, 10); dPadding.PaddingRight = UDim.new(0, 10); dPadding.PaddingTop = UDim.new(0, 5); dPadding.PaddingBottom = UDim.new(0, 5)
 
 local BanListTitle = Instance.new("TextLabel", ContentFrame)
 BanListTitle.Size = UDim2.new(0, 150, 0, 20); BanListTitle.Position = UDim2.new(0, 662, 0, 125); BanListTitle.BackgroundTransparency = 1; BanListTitle.Text = "BAN LIST"; BanListTitle.TextColor3 = Color3.fromRGB(255, 100, 100); BanListTitle.Font = Enum.Font.SourceSansBold; BanListTitle.TextSize = 14
@@ -270,33 +274,19 @@ DelBtn.MouseButton1Click:Connect(function()
         local targetData, foundInBanList = nil, false
         for path, data in pairs(ManualBannedPaths) do 
             if data.guid == currentSelectionGUID then 
-                targetData = {path = path, guid = data.guid, isBanList = true}
-                foundInBanList = true
-                break 
+                targetData = {path = path, guid = data.guid, isBanList = true}; foundInBanList = true; break 
             end 
         end
         if not foundInBanList then 
             local nM = {}
             for _, m in ipairs(MainMemory) do 
-                if m.guid == currentSelectionGUID then 
-                    targetData = m 
-                else 
-                    nM[#nM+1] = m 
-                end 
+                if m.guid == currentSelectionGUID then targetData = m else nM[#nM+1] = m end 
             end
             if targetData then MainMemory = nM end 
         end
         if targetData then 
-            if foundInBanList then 
-                ManualBannedPaths[targetData.path] = nil
-                updateRedListUI()
-                feedback(DelBtn, "UNBANNED") 
-            else 
-                feedback(DelBtn, "DELETED") 
-            end
-            lastCount = -1
-            currentSelectionGUID = nil
-            Details.Text = "" 
+            if foundInBanList then ManualBannedPaths[targetData.path] = nil; updateRedListUI(); feedback(DelBtn, "UNBANNED") else feedback(DelBtn, "DELETED") end
+            lastCount = -1; currentSelectionGUID = nil; Details.Text = "" 
         end
     end
 end)
@@ -309,17 +299,8 @@ BlockBtn.MouseButton1Click:Connect(function()
                 if p then 
                     ManualBannedPaths[p] = {guid = d.guid, prefix = "MANUAL BANNED:\n\n", fullText = d.fullText, rawArgs = d.rawArgs, type = d.type, path = d.path, argsStr = d.argsStr}
                     local nM = {}
-                    for _, m in ipairs(MainMemory) do 
-                        if not (m.path == p and not m.isSelf) then 
-                            nM[#nM+1] = m 
-                        end 
-                    end
-                    MainMemory = nM
-                    lastCount = -1
-                    currentSelectionGUID = nil
-                    updateRedListUI()
-                    Details.Text = "Banned."
-                    feedback(BlockBtn, "BANNED") 
+                    for _, m in ipairs(MainMemory) do if not (m.path == p and not m.isSelf) then nM[#nM+1] = m end end
+                    MainMemory = nM; lastCount = -1; currentSelectionGUID = nil; updateRedListUI(); Details.Text = "Banned."; feedback(BlockBtn, "BANNED") 
                 end
                 break
             end
@@ -337,10 +318,7 @@ MinBtn.MouseButton1Click:Connect(function()
     else
         Main:TweenSizeAndPosition(UDim2.new(0, 820, 0, 440), UDim2.new(0, curX - 820, 0, curY), "Out", "Quad", 0.15, true, function()
             ContentFrame.Visible = true; ControlBtn.Visible = true; SelfBtn.Visible = true; DelBtn.Visible = true
-            if not controlMode then 
-                AntiSpamBtn.Visible = true
-                BlockBtn.Visible = true 
-            end
+            if not controlMode then AntiSpamBtn.Visible = true; BlockBtn.Visible = true end
         end)
         MinBtn.Text = "_"; lastCount = -1
     end
@@ -379,10 +357,7 @@ end
 local CopyArgsBtn = createBotBtn("COPY ARGS", UDim2.new(0, 205, 0.68, 0), UDim2.new(0, 95, 0, 58), Color3.fromRGB(45, 90, 45))
 CopyArgsBtn.MouseButton1Click:Connect(function()
     local a = Details.Text:match("Args: (.-)\n\nScript")
-    if a then 
-        setclipboard(a)
-        feedback(CopyArgsBtn, "COPIED!") 
-    end
+    if a then setclipboard(a); feedback(CopyArgsBtn, "COPIED!") end
 end)
 
 local SortBtn = createBotBtn("SORT: OFF", UDim2.new(0, 305, 0.68, 0), UDim2.new(0, 120, 0, 58), Color3.fromRGB(40, 70, 70))
@@ -392,57 +367,29 @@ SortBtn.MouseButton1Click:Connect(function()
     SortBtn.BackgroundColor3 = sortEnabled and Color3.fromRGB(0, 140, 140) or Color3.fromRGB(40, 70, 70)
     if currentSelectionGUID then
         local found = false
-        for _, m in ipairs(MainMemory) do 
-            if m.guid == currentSelectionGUID then 
-                Details.Text = getSortedDetails(m)
-                found = true
-                break 
-            end 
-        end
-        if not found then 
-            for _, data in pairs(ManualBannedPaths) do 
-                if data.guid == currentSelectionGUID then 
-                    Details.Text = getSortedDetails(data)
-                    break 
-                end 
-            end 
-        end
+        for _, m in ipairs(MainMemory) do if m.guid == currentSelectionGUID then Details.Text = getSortedDetails(m); found = true; break end end
+        if not found then for _, data in pairs(ManualBannedPaths) do if data.guid == currentSelectionGUID then Details.Text = getSortedDetails(data); break end end end
     end
 end)
 
 local CopyScriptBtn = createBotBtn("COPY SCRIPT", UDim2.new(0, 205, 0.83, 0), nil, Color3.fromRGB(60, 60, 120))
 CopyScriptBtn.MouseButton1Click:Connect(function()
     local s = Details.Text:match("Script:\n(.*)")
-    if s then 
-        setclipboard(s)
-        feedback(CopyScriptBtn, "SCRIPT COPIED!") 
-    end
+    if s then setclipboard(s); feedback(CopyScriptBtn, "SCRIPT COPIED!") end
 end)
 
 local ClearLogBtn = createBotBtn("CLEAR LOG", UDim2.new(0, 432, 0.68, 0), UDim2.new(0, 108, 0, 58), Color3.fromRGB(80, 80, 85))
 ClearLogBtn.MouseButton1Click:Connect(function()
     local nM = {}
-    for _, m in ipairs(MainMemory) do 
-        if m.isSelf then 
-            nM[#nM+1] = m 
-        end 
-    end
-    MainMemory = nM
-    lastCount = -1
-    feedback(ClearLogBtn, "CLEARED SRV")
+    for _, m in ipairs(MainMemory) do if m.isSelf then nM[#nM+1] = m end end
+    MainMemory = nM; lastCount = -1; feedback(ClearLogBtn, "CLEARED SRV")
 end)
 
 local ClearSelfBtn = createBotBtn("CLEAR SELF", UDim2.new(0, 544, 0.68, 0), UDim2.new(0, 108, 0, 58), Color3.fromRGB(100, 80, 60))
 ClearSelfBtn.MouseButton1Click:Connect(function()
     local nM = {}
-    for _, m in ipairs(MainMemory) do 
-        if not m.isSelf then 
-            nM[#nM+1] = m 
-        end 
-    end
-    MainMemory = nM
-    lastCount = -1
-    feedback(ClearSelfBtn, "CLEARED SELF")
+    for _, m in ipairs(MainMemory) do if not m.isSelf then nM[#nM+1] = m end end
+    MainMemory = nM; lastCount = -1; feedback(ClearSelfBtn, "CLEARED SELF")
 end)
 
 local ExecuteBtn = createBotBtn("EXECUTE", UDim2.new(0, 432, 0.83, 0), nil, Color3.fromRGB(120, 60, 60))
@@ -450,16 +397,12 @@ ExecuteBtn.MouseButton1Click:Connect(function()
     local s = Details.Text:match("Script:\n(.*)") or Details.Text
     if s and s ~= "" then
         local f = loadstring(s)
-        if f then 
-            task.spawn(f)
-            feedback(ExecuteBtn, "EXECUTED!") 
-        end
+        if f then task.spawn(f); feedback(ExecuteBtn, "EXECUTED!") end
     end
 end)
 
 SelfBtn.MouseButton1Click:Connect(function() 
-    selfMode = not selfMode
-    lastCount = -1
+    selfMode = not selfMode; lastCount = -1
     SelfBtn.Text = "SELF: "..(selfMode and "ON" or "OFF")
     SelfBtn.BackgroundColor3 = selfMode and Color3.fromRGB(45, 90, 45) or Color3.fromRGB(150, 50, 50) 
 end)
