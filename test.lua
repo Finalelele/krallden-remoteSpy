@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.6.5 FIXED ]] --
+-- [[ KRALLDEN SPY v9.6.6 FIXED ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -36,9 +36,9 @@ Main.BackgroundColor3 = Color3.fromRGB(15, 15, 20); Main.Size = UDim2.new(0, 820
 
 local MainMemory, PathFilter, ManualBannedPaths = {}, {}, {}
 local AntiSpamCooldowns, AntiSpamCounts = {}, {}
--- Новые таблицы кеша для Self-ивентов
-local SelfPathCache = {}     -- для режима SELF ON
-local SelfFullCache = {}     -- для режима SELF OFF (path+args)
+
+-- ЕДИНАЯ ТАБЛИЦА ДЛЯ SELF ИВЕНТОВ
+local SelfStorage = {} -- Структура: [path] = { {args = "...", fullKey = "path|args"}, ... }
 
 local selfMode, controlMode, antiSpam = true, true, true
 local spyFS, spyFC, spyIS = true, false, false
@@ -157,7 +157,7 @@ local Header = Instance.new("Frame")
 Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(25, 25, 30); Header.ZIndex = 10; Header.BorderSizePixel = 0; Header.Parent = Main
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0); Title.Text = "KRALLDEN SPY v9.6.5"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0; Title.Parent = Header
+Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0); Title.Text = "KRALLDEN SPY v9.6.6"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0; Title.Parent = Header
 
 local MinBtn = Instance.new("TextButton")
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "-"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0; MinBtn.Parent = Header
@@ -297,20 +297,30 @@ local function addLog(rem, args, isSelf, typeLabel)
     
     local fArgs, fArgsP = table.concat(argList, ","), table.concat(argListPretty, ",\n")
 
-    -- ===== НОВАЯ ЛОГИКА ПРОВЕРКИ (SELF И NON-SELF) =====
+    -- ===== НОВАЯ УНИФИЦИРОВАННАЯ ЛОГИКА SELF =====
     if isSelf then
+        if not SelfStorage[eventPath] then SelfStorage[eventPath] = {} end
+        
+        local alreadyExists = false
         if selfMode then
-            -- SELF ON -> проверка только path
-            if SelfPathCache[eventPath] then return end
-            SelfPathCache[eventPath] = true
+            -- SELF ON: Если в хранилище для этого пути уже есть хоть одна запись — пропускаем
+            if #SelfStorage[eventPath] > 0 then alreadyExists = true end
         else
-            -- SELF OFF -> проверка path + args
-            local key = eventPath .. "|" .. fArgs
-            if SelfFullCache[key] then return end
-            SelfFullCache[key] = true
+            -- SELF OFF: Проверяем конкретную связку path + args
+            for _, entry in ipairs(SelfStorage[eventPath]) do
+                if entry.args == fArgs then
+                    alreadyExists = true
+                    break
+                end
+            end
         end
+        
+        if alreadyExists then return end
+        
+        -- Записываем в общую таблицу
+        table.insert(SelfStorage[eventPath], {args = fArgs, fullKey = eventPath .. "|" .. fArgs})
     else
-        -- NON-SELF LOGIC (Игнорирует проверку, если включен Control)
+        -- NON-SELF LOGIC
         for _, m in ipairs(MainMemory) do
             if m.path == eventPath and not m.isSelf then
                 if controlMode or m.argsStr == fArgs then
@@ -375,7 +385,6 @@ DelBtn.MouseButton1Click:Connect(function()
     if not currentSelectionGUID then return end
     local targetPath, foundInBan = nil, false
     
-    -- Проверка в бан-листе
     for path, data in pairs(ManualBannedPaths) do
         if data.guid == currentSelectionGUID then targetPath, foundInBan = path, true break end
     end
@@ -385,17 +394,13 @@ DelBtn.MouseButton1Click:Connect(function()
         redListNeedsUpdate = true
         feedback(DelBtn, "UNBANNED")
     else
-        -- Удаление из основного списка и ОЧИСТКА КЕША
         local nM = {}
         for _, m in ipairs(MainMemory) do 
             if m.guid == currentSelectionGUID then
                 targetPath = m.path
-                -- Чистим кеши, чтобы ивент мог вернуться
-                SelfPathCache[targetPath] = nil
-                for k in pairs(SelfFullCache) do
-                    if k:find(targetPath, 1, true) then
-                        SelfFullCache[k] = nil
-                    end
+                -- Чистим единое хранилище Self для этого пути
+                if m.isSelf then
+                    SelfStorage[targetPath] = nil
                 end
             else
                 table.insert(nM, m) 
@@ -511,9 +516,8 @@ ClearSelfBtn.MouseButton1Click:Connect(function()
     local nM = {}
     for _, m in ipairs(MainMemory) do if not m.isSelf then table.insert(nM, m) end end
     MainMemory, lastCount = nM, -1 
-    -- Полная очистка кеша Self при нажатии Clear Self
-    SelfPathCache = {}
-    SelfFullCache = {}
+    -- ПОЛНАЯ ОЧИСТКА ХРАНИЛИЩА SELF
+    SelfStorage = {}
     feedback(ClearSelfBtn, "CLEARED")
 end)
 
