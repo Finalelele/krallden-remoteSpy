@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.6.6 FIXED & UPDATED ]] --
+-- [[ KRALLDEN SPY v9.6.7 FIXED & UPDATED ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -154,7 +154,7 @@ local Header = Instance.new("Frame")
 Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(25, 25, 30); Header.ZIndex = 10; Header.BorderSizePixel = 0; Header.Parent = Main
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0); Title.Text = "KRALLDEN SPY v9.6.6"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0; Title.Parent = Header
+Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0); Title.Text = "KRALLDEN SPY v9.6.7"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0; Title.Parent = Header
 
 local MinBtn = Instance.new("TextButton")
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "-"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0; MinBtn.Parent = Header
@@ -229,6 +229,8 @@ end
 local function addLog(rem, args, isSelf, typeLabel)
     if (typeLabel == "FS" and not spyFS) or (typeLabel == "FC" and not spyFC) or (typeLabel == "IS" and not spyIS) then return end
     local eventPath = getSafePath(rem)
+    
+    -- Твои ивенты игнорируют бан-лист и систему памяти в плане блокировки отображения
     if not isSelf and ManualBannedPaths[eventPath] then return end
 
     local function parseValue(v, d, pretty, indent)
@@ -292,15 +294,15 @@ local function addLog(rem, args, isSelf, typeLabel)
     
     local fArgs, fArgsP = table.concat(argList, ","), table.concat(argListPretty, ",\n")
     
-    -- ИСПРАВЛЕННАЯ ЛОГИКА ДУБЛИКАТОВ (Фикс selfMode/controlMode OFF)
+    -- ИСПРАВЛЕННАЯ ЛОГИКА ПАМЯТИ: проверяем аргументы при выключенном режиме
     for _, m in ipairs(MainMemory) do
         if m.path == eventPath and m.isSelf == isSelf then
             if isSelf then
-                if selfMode then return end -- Блокируем всё от себя
-                if m.argsStr == fArgs then return end -- Блокируем только если аргументы те же
+                if selfMode then return end -- Блокируем любые повторы если ON
+                if m.argsStr == fArgs then return end -- Блокируем только если аргументы ИДЕНТИЧНЫ если OFF
             else
-                if controlMode then return end -- Блокируем всё от сервера
-                if m.argsStr == fArgs then return end -- Блокируем только если аргументы те же
+                if controlMode then return end -- Блокируем любые повторы сервера если ON
+                if m.argsStr == fArgs then return end -- Блокируем только если аргументы ИДЕНТИЧНЫ если OFF
             end
         end
     end
@@ -310,6 +312,7 @@ local function addLog(rem, args, isSelf, typeLabel)
     local log = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, fArgs=="" and "None" or fArgs, eventPath, method, fArgs)
     local logP = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, fArgsP=="" and "None" or "\n"..fArgsP, eventPath, method, fArgs)
 
+    -- Анти-спам работает только для чужих ивентов
     if not isSelf and not controlMode and antiSpam then
         if (tick() - (AntiSpamCooldowns[eventPath] or 0)) < 0.4 then
             AntiSpamCounts[eventPath] = (AntiSpamCounts[eventPath] or 0) + 1
@@ -416,7 +419,7 @@ task.spawn(function()
                 b.Size, b.LayoutOrder, b.BorderSizePixel = UDim2.new(1, -6, 0, 30), i, 0
                 b.Text = string.format("[%s]%s %s", d.type, (d.isSelf and " [S]" or ""), d.name)
                 b:SetAttribute("GUID", d.guid)
-                b.SetAttribute(b, "IsSelf", d.isSelf)
+                b:SetAttribute("IsSelf", d.isSelf)
                 b.BackgroundColor3 = (currentSelectionGUID == d.guid) and Color3.fromRGB(100, 50, 200) or (d.isSelf and Color3.fromRGB(45, 90, 45) or Color3.fromRGB(40, 40, 45))
                 b.TextColor3, b.Font, b.TextSize = Color3.new(1,1,1), Enum.Font.SourceSans, 12
                 b.MouseButton1Click:Connect(function() currentSelectionGUID = d.guid updateDetailsView() refreshSelectionColors() end)
@@ -474,7 +477,6 @@ ClearSelfBtn.MouseButton1Click:Connect(function()
     feedback(ClearSelfBtn, "CLEARED")
 end)
 
--- ИСПРАВЛЕННАЯ КНОПКА EXECUTE (Текст EXECUTED!)
 local ExecBtn = createBotBtn("EXECUTE", UDim2.new(0, 432, 0.83, 0), nil, Color3.fromRGB(120, 60, 60))
 ExecBtn.MouseButton1Click:Connect(function() 
     local text = Details.Text
