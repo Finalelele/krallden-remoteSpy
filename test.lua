@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.5.0 - TEXTLABEL STABILITY FIX ]] --
+-- [[ KRALLDEN SPY v9.5.1 - MANUAL CANVAS CONTROL FIX ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -42,7 +42,7 @@ local sortArgs = false
 
 local function generateGUID() return tostring(tick()) .. "-" .. tostring(math.random(1, 100000)) end
 
-local RedListScroll, Scroll, DetailsScroll, Details, ContentFrame
+local RedListScroll, Scroll, DetailsScroll, Details, ContentFrame, detailList
 
 -- Функция фидбека
 local activeFeedbacks = {}
@@ -81,18 +81,30 @@ local function updateDetailsView()
         Details.Text = ""
         return
     end
+    
+    local found = false
     for _, d in ipairs(MainMemory) do
         if d.guid == currentSelectionGUID then
             Details.Text = sortArgs and d.fullTextPretty or d.fullText
-            return
+            found = true; break
         end
     end
-    for _, data in pairs(ManualBannedPaths) do
-        if data.guid == currentSelectionGUID then
-            Details.Text = sortArgs and (data.detailsPretty or data.details) or data.details
-            return
+    
+    if not found then
+        for _, data in pairs(ManualBannedPaths) do
+            if data.guid == currentSelectionGUID then
+                Details.Text = sortArgs and (data.detailsPretty or data.details) or data.details
+                found = true; break
+            end
         end
     end
+
+    -- ЖЕСТКИЙ ФИКС ОБНОВЛЕНИЯ
+    task.defer(function()
+        if detailList and DetailsScroll then
+            DetailsScroll.CanvasSize = UDim2.new(0, 0, 0, detailList.AbsoluteContentSize.Y + 20)
+        end
+    end)
 end
 
 local function updateRedListUI()
@@ -121,7 +133,7 @@ Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(2
 
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.5.0"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
+Title.Text = "KRALLDEN SPY v9.5.1"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0
 
 local MinBtn = Instance.new("TextButton", Header)
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "_"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0
@@ -147,7 +159,7 @@ Scroll = Instance.new("ScrollingFrame", ContentFrame)
 Scroll.Position = UDim2.new(0, 8, 0, 8); Scroll.Size = UDim2.new(0, 190, 1, -16); Scroll.BackgroundColor3 = Color3.fromRGB(20, 20, 25); Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y; Scroll.BorderSizePixel = 0
 Instance.new("UIListLayout", Scroll).SortOrder = Enum.SortOrder.LayoutOrder
 
--- ФИКС DETAILS (Переход на TextLabel + UIListLayout)
+-- DETAILS С РУЧНЫМ ОБНОВЛЕНИЕМ CANVAS
 DetailsScroll = Instance.new("ScrollingFrame", ContentFrame)
 DetailsScroll.Name = "DetailsScroll"
 DetailsScroll.Position = UDim2.new(0, 205, 0, 8)
@@ -155,12 +167,16 @@ DetailsScroll.Size = UDim2.new(0, 448, 0, 255)
 DetailsScroll.BackgroundColor3 = Color3.fromRGB(10, 10, 12)
 DetailsScroll.BorderSizePixel = 0
 DetailsScroll.ScrollBarThickness = 6
-DetailsScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-DetailsScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+DetailsScroll.CanvasSize = UDim2.new(0, 0, 0, 0) -- Убрали AutomaticCanvasSize
 
-local detailList = Instance.new("UIListLayout", DetailsScroll)
+detailList = Instance.new("UIListLayout", DetailsScroll)
 detailList.SortOrder = Enum.SortOrder.LayoutOrder
 detailList.Padding = UDim.new(0, 5)
+
+-- ФИКС: РУЧНОЙ МОНИТОРИНГ РАЗМЕРА
+detailList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    DetailsScroll.CanvasSize = UDim2.new(0, 0, 0, detailList.AbsoluteContentSize.Y + 20)
+end)
 
 local detailPad = Instance.new("UIPadding", DetailsScroll)
 detailPad.PaddingLeft = UDim.new(0, 10); detailPad.PaddingRight = UDim.new(0, 10)
