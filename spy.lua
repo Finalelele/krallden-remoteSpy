@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.6.1 ]] --
+-- [[ KRALLDEN SPY v9.6.3 ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -93,7 +93,8 @@ end
 
 local function forceUpdateCanvas()
     if not Details or not DetailsScroll then return end
-    local width = DetailsScroll.AbsoluteSize.X - 20
+    -- ИСПРАВЛЕНИЕ: Вычитаем ширину отступов (10 слева + 10 справа) и ширину скроллбара (6), берем с запасом 30 пикселей
+    local width = DetailsScroll.AbsoluteSize.X - 30
     if width <= 0 then width = 428 end
     local text = Details.Text ~= "" and Details.Text or " "
     local size = TextService:GetTextSize(text, Details.TextSize, Details.Font, Vector2.new(width, math.huge))
@@ -165,7 +166,7 @@ local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(0, 200, 1, 0)
 Title.BackgroundTransparency = 1
 Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.6.1"
+Title.Text = "KRALLDEN SPY v9.6.3"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 16
@@ -321,12 +322,17 @@ local function addLog(rem, args, isSelf, typeLabel)
             res = res:gsub(",%s*$", "") .. (pretty and "\n" .. string.rep("  ", indent) or "") .. "}"
             return res == "{}" and "{}" or res
         elseif t == "CFrame" then
-            local comp = {v:GetComponents()}
-            return string.format("CFrame.new(\n%s%.3f, %.3f, %.3f,\n%s%.3f, %.3f, %.3f,\n%s%.3f, %.3f, %.3f,\n%s%.3f\n%s)",
-                string.rep("  ", indent+1), comp[1], comp[2], comp[3],
-                string.rep("  ", indent+1), comp[4], comp[5], comp[6],
-                string.rep("  ", indent+1), comp[7], comp[8], comp[9],
-                string.rep("  ", indent+1), comp[10], string.rep("  ", indent))
+            -- ИСПРАВЛЕНИЕ: Красивый перенос работает только когда pretty == true (т.е. в режиме SORT)
+            if pretty then
+                local comp = {v:GetComponents()}
+                return string.format("CFrame.new(\n%s%.3f, %.3f, %.3f,\n%s%.3f, %.3f, %.3f,\n%s%.3f, %.3f, %.3f,\n%s%.3f\n%s)",
+                    string.rep("  ", indent+1), comp[1], comp[2], comp[3],
+                    string.rep("  ", indent+1), comp[4], comp[5], comp[6],
+                    string.rep("  ", indent+1), comp[7], comp[8], comp[9],
+                    string.rep("  ", indent+1), comp[10], string.rep("  ", indent))
+            else
+                return "CFrame.new(" .. tostring(v) .. ")"
+            end
         elseif t == "Vector3" then return "Vector3.new(" .. tostring(v) .. ")"
         elseif t == "Color3" then return "Color3.new(" .. tostring(v) .. ")"
         elseif t == "Instance" then return getSafePath(v)
@@ -347,8 +353,10 @@ local function addLog(rem, args, isSelf, typeLabel)
     end
 
     local method = (typeLabel == "IS" and "InvokeServer" or (typeLabel == "FC" and "FireClient" or "FireServer"))
-    local log = string.format("Type: %s\nPath: %s\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, fArgs=="" and "None" or fArgs, eventPath, method, fArgs)
-    local logP = string.format("Type: %s\nPath: %s\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, fArgsP=="" and "None" or "\n"..fArgsP, eventPath, method, fArgs)
+    
+    -- ИСПРАВЛЕНИЕ: Добавлены пустые строки (\n\n) между Type, Path и Args
+    local log = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, fArgs=="" and "None" or fArgs, eventPath, method, fArgs)
+    local logP = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, fArgsP=="" and "None" or "\n"..fArgsP, eventPath, method, fArgs)
 
     if not isSelf and not controlMode and antiSpam then
         if (tick() - (AntiSpamCooldowns[eventPath] or 0)) < 0.4 then
@@ -364,7 +372,12 @@ local function addLog(rem, args, isSelf, typeLabel)
         AntiSpamCooldowns[eventPath] = tick()
     end
 
-    table.insert(MainMemory, 1, {guid = generateGUID(), name = tostring(rem.Name), type = typeLabel, isSelf = isSelf, fullText = log, fullTextPretty = logP, path = eventPath, argsStr = fArgs})
+    -- ИСПРАВЛЕНИЕ: Вернул старую надежную систему сдвига индексов вместо table.insert
+    local newEvent = {guid = generateGUID(), name = tostring(rem.Name), type = typeLabel, isSelf = isSelf, fullText = log, fullTextPretty = logP, path = eventPath, argsStr = fArgs}
+    for i = #MainMemory, 1, -1 do
+        MainMemory[i+1] = MainMemory[i]
+    end
+    MainMemory[1] = newEvent
 end
 
 -- HOOKS
