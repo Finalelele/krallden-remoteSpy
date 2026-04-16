@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.6.4 FIXED ]] --
+-- [[ KRALLDEN SPY v9.6.5 FIXED ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -41,7 +41,7 @@ local spyFS, spyFC, spyIS = true, false, false
 local currentSelectionGUID, lastCount = nil, 0
 local isMin = false
 local sortArgs = false
-local redListNeedsUpdate = false -- Флаг для безопасного обновления UI
+local redListNeedsUpdate = false 
 
 local function generateGUID() 
     return tostring(tick()) .. "-" .. tostring(math.random(1, 100000)) 
@@ -124,7 +124,6 @@ local function updateDetailsView()
 end
 
 local function updateRedListUI()
-    -- Теперь функция выполняется только в основном потоке через флаг
     if not RedListScroll then return end
     for _, v in pairs(RedListScroll:GetChildren()) do 
         if v:IsA("TextButton") then v:Destroy() end 
@@ -154,7 +153,7 @@ local Header = Instance.new("Frame")
 Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(25, 25, 30); Header.ZIndex = 10; Header.BorderSizePixel = 0; Header.Parent = Main
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0); Title.Text = "KRALLDEN SPY v9.6.4"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0; Title.Parent = Header
+Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0); Title.Text = "KRALLDEN SPY v9.6.5"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0; Title.Parent = Header
 
 local MinBtn = Instance.new("TextButton")
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "-"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0; MinBtn.Parent = Header
@@ -229,7 +228,12 @@ end
 local function addLog(rem, args, isSelf, typeLabel)
     if (typeLabel == "FS" and not spyFS) or (typeLabel == "FC" and not spyFC) or (typeLabel == "IS" and not spyIS) then return end
     local eventPath = getSafePath(rem)
-    if not isSelf and ManualBannedPaths[eventPath] then return end
+    
+    -- Фильтр: если не self, то проверяем бан-лист и controlMode
+    if not isSelf then
+        if ManualBannedPaths[eventPath] then return end
+        if controlMode then return end -- Если CONTROL ON, чужие ивенты вообще не логаем
+    end
 
     local function parseValue(v, d, pretty, indent)
         d = d or 0
@@ -291,25 +295,38 @@ local function addLog(rem, args, isSelf, typeLabel)
     end
     
     local fArgs, fArgsP = table.concat(argList, ","), table.concat(argListPretty, ",\n")
-    for _, m in ipairs(MainMemory) do
-        if m.path == eventPath and m.isSelf == isSelf then
-            if (isSelf and (selfMode or m.argsStr == fArgs)) or (not isSelf and controlMode) or m.argsStr == fArgs then return end
+
+    -- ЛОГИКА БЛОКИРОВКИ ПОВТОРОВ (MEMORY CHECK)
+    if isSelf then
+        if selfMode then
+            -- SELF ON: Проверяем только Путь. Если путь уже есть в памяти - блок.
+            for _, m in ipairs(MainMemory) do
+                if m.path == eventPath and m.isSelf then return end
+            end
+        else
+            -- SELF OFF: Проверяем Путь + Аргументы. Если и то и то совпало - блок.
+            for _, m in ipairs(MainMemory) do
+                if m.path == eventPath and m.isSelf and m.argsStr == fArgs then return end
+            end
+        end
+    else
+        -- Для чужих ивентов стандартная проверка на дубликаты (Путь + Аргументы)
+        for _, m in ipairs(MainMemory) do
+            if m.path == eventPath and not m.isSelf and m.argsStr == fArgs then return end
         end
     end
 
     local method = (typeLabel == "IS" and "InvokeServer" or (typeLabel == "FC" and "FireClient" or "FireServer"))
-    
     local log = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, fArgs=="" and "None" or fArgs, eventPath, method, fArgs)
     local logP = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, fArgsP=="" and "None" or "\n"..fArgsP, eventPath, method, fArgs)
 
-    if not isSelf and not controlMode and antiSpam then
+    -- Анти-спам для чужих ивентов
+    if not isSelf and antiSpam then
         if (tick() - (AntiSpamCooldowns[eventPath] or 0)) < 0.4 then
             AntiSpamCounts[eventPath] = (AntiSpamCounts[eventPath] or 0) + 1
             if AntiSpamCounts[eventPath] >= 4 then
                 local remoteName = "Unknown"
                 pcall(function() remoteName = tostring(rem.Name) end)
-                
-                -- Вместо прямого вызова UI, ставим флаг
                 ManualBannedPaths[eventPath] = {guid = generateGUID(), name = remoteName, details = "AUTO-BANNED\n"..log, detailsPretty = "AUTO-BANNED\n"..logP}
                 local nM = {}
                 for _, m in ipairs(MainMemory) do if not (m.path == eventPath and not m.isSelf) then table.insert(nM, m) end end
@@ -322,10 +339,7 @@ local function addLog(rem, args, isSelf, typeLabel)
     end
 
     local newEvent = {guid = generateGUID(), name = tostring(rem.Name), type = typeLabel, isSelf = isSelf, fullText = log, fullTextPretty = logP, path = eventPath, argsStr = fArgs}
-    for i = #MainMemory, 1, -1 do
-        MainMemory[i+1] = MainMemory[i]
-    end
-    MainMemory[1] = newEvent
+    table.insert(MainMemory, 1, newEvent)
 end
 
 -- HOOKS
@@ -402,10 +416,9 @@ MinBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- RENDER LOOP (Основной поток для UI)
+-- RENDER LOOP
 task.spawn(function()
     while task.wait(0.5) do
-        -- Проверка обновления основного лога
         if ContentFrame.Visible and #MainMemory ~= lastCount then 
             lastCount = #MainMemory
             for _, v in pairs(Scroll:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
@@ -425,7 +438,6 @@ task.spawn(function()
             end
         end
 
-        -- Безопасное обновление Бан-листа
         if redListNeedsUpdate then
             redListNeedsUpdate = false
             updateRedListUI()
