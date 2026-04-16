@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.6.7 FIXED & UPDATED ]] --
+-- [[ KRALLDEN SPY v9.6.8 FIXED & UPDATED ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -154,7 +154,7 @@ local Header = Instance.new("Frame")
 Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(25, 25, 30); Header.ZIndex = 10; Header.BorderSizePixel = 0; Header.Parent = Main
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0); Title.Text = "KRALLDEN SPY v9.6.7"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0; Title.Parent = Header
+Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0); Title.Text = "KRALLDEN SPY v9.6.8"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0; Title.Parent = Header
 
 local MinBtn = Instance.new("TextButton")
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "-"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0; MinBtn.Parent = Header
@@ -228,9 +228,13 @@ end
 
 local function addLog(rem, args, isSelf, typeLabel)
     if (typeLabel == "FS" and not spyFS) or (typeLabel == "FC" and not spyFC) or (typeLabel == "IS" and not spyIS) then return end
+    
+    -- ИНТЕГРАЦИЯ SELF: если selfMode выключен, блокируем запись своих ивентов полностью
+    if isSelf and not selfMode then return end
+    
     local eventPath = getSafePath(rem)
     
-    -- Твои ивенты игнорируют бан-лист и систему памяти в плане блокировки отображения
+    -- Чужие ивенты проверяем по бан-листу
     if not isSelf and ManualBannedPaths[eventPath] then return end
 
     local function parseValue(v, d, pretty, indent)
@@ -294,15 +298,11 @@ local function addLog(rem, args, isSelf, typeLabel)
     
     local fArgs, fArgsP = table.concat(argList, ","), table.concat(argListPretty, ",\n")
     
-    -- ИСПРАВЛЕННАЯ ЛОГИКА ПАМЯТИ: проверяем аргументы при выключенном режиме
+    -- Проверка на дубликаты (память)
     for _, m in ipairs(MainMemory) do
         if m.path == eventPath and m.isSelf == isSelf then
-            if isSelf then
-                if selfMode then return end -- Блокируем любые повторы если ON
-                if m.argsStr == fArgs then return end -- Блокируем только если аргументы ИДЕНТИЧНЫ если OFF
-            else
-                if controlMode then return end -- Блокируем любые повторы сервера если ON
-                if m.argsStr == fArgs then return end -- Блокируем только если аргументы ИДЕНТИЧНЫ если OFF
+            if controlMode then 
+                if m.argsStr == fArgs then return end 
             end
         end
     end
@@ -312,7 +312,7 @@ local function addLog(rem, args, isSelf, typeLabel)
     local log = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, fArgs=="" and "None" or fArgs, eventPath, method, fArgs)
     local logP = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, fArgsP=="" and "None" or "\n"..fArgsP, eventPath, method, fArgs)
 
-    -- Анти-спам работает только для чужих ивентов
+    -- Анти-спам для чужих
     if not isSelf and not controlMode and antiSpam then
         if (tick() - (AntiSpamCooldowns[eventPath] or 0)) < 0.4 then
             AntiSpamCounts[eventPath] = (AntiSpamCounts[eventPath] or 0) + 1
@@ -330,7 +330,17 @@ local function addLog(rem, args, isSelf, typeLabel)
         AntiSpamCooldowns[eventPath] = tick()
     end
 
-    local newEvent = {guid = generateGUID(), name = tostring(rem.Name), type = typeLabel, isSelf = isSelf, fullText = log, fullTextPretty = logP, path = eventPath, argsStr = fArgs}
+    local newEvent = {
+        guid = generateGUID(), 
+        name = tostring(rem.Name), 
+        type = typeLabel, 
+        isSelf = isSelf, 
+        fullText = log, 
+        fullTextPretty = logP, 
+        path = eventPath, 
+        argsStr = fArgs,
+        timestamp = tick()
+    }
     table.insert(MainMemory, 1, newEvent)
 end
 
@@ -408,7 +418,7 @@ MinBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- RENDER LOOP
+-- RENDER LOOP (С ИНТЕГРАЦИЕЙ ПРИОРИТЕТА SELF)
 task.spawn(function()
     while task.wait(0.5) do
         if ContentFrame.Visible and #MainMemory ~= lastCount then 
@@ -416,7 +426,11 @@ task.spawn(function()
             for _, v in pairs(Scroll:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
             for i, d in ipairs(MainMemory) do
                 local b = Instance.new("TextButton")
-                b.Size, b.LayoutOrder, b.BorderSizePixel = UDim2.new(1, -6, 0, 30), i, 0
+                b.Size, b.BorderSizePixel = UDim2.new(1, -6, 0, 30), 0
+                
+                -- ПРИОРИТЕТ: Self ивенты всегда выше (LayoutOrder)
+                b.LayoutOrder = d.isSelf and -1000000000 - i or i
+                
                 b.Text = string.format("[%s]%s %s", d.type, (d.isSelf and " [S]" or ""), d.name)
                 b:SetAttribute("GUID", d.guid)
                 b:SetAttribute("IsSelf", d.isSelf)
@@ -501,6 +515,13 @@ end)
 SelfBtn.MouseButton1Click:Connect(function() 
     selfMode = not selfMode
     SelfBtn.Text, SelfBtn.BackgroundColor3, lastCount = "SELF: "..(selfMode and "ON" or "OFF"), selfMode and Color3.fromRGB(45, 90, 45) or Color3.fromRGB(150, 50, 50), -1
+    
+    -- При выключении selfMode удаляем текущие self-ивенты из памяти для чистоты (как в старой версии)
+    if not selfMode then
+        local nM = {}
+        for _, m in ipairs(MainMemory) do if not m.isSelf then table.insert(nM, m) end end
+        MainMemory = nM
+    end
 end)
 
 AntiSpamBtn.MouseButton1Click:Connect(function() 
