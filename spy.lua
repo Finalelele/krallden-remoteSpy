@@ -41,6 +41,7 @@ local spyFS, spyFC, spyIS = true, false, false
 local currentSelectionGUID, lastCount = nil, 0
 local isMin = false
 local sortArgs = false
+local redListNeedsUpdate = false -- Флаг для безопасного обновления UI
 
 local function generateGUID() 
     return tostring(tick()) .. "-" .. tostring(math.random(1, 100000)) 
@@ -123,31 +124,29 @@ local function updateDetailsView()
 end
 
 local function updateRedListUI()
-    -- Используем task.spawn, чтобы избежать ошибки "current thread cannot access instance"
-    task.spawn(function()
-        if not RedListScroll then return end
-        for _, v in pairs(RedListScroll:GetChildren()) do 
-            if v:IsA("TextButton") then v:Destroy() end 
-        end
-        for path, data in pairs(ManualBannedPaths) do
-            local b = Instance.new("TextButton")
-            b.Size = UDim2.new(1, -6, 0, 25)
-            b:SetAttribute("GUID", data.guid)
-            b.BackgroundColor3 = (currentSelectionGUID == data.guid) and Color3.fromRGB(100, 50, 200) or Color3.fromRGB(100, 35, 35)
-            b.TextColor3 = Color3.new(1,1,1)
-            b.Font = Enum.Font.SourceSans
-            b.TextSize = 11
-            b.BorderSizePixel = 0
-            local shortName = data.name or (path:match("[^%.%[%]]+$") or path):gsub('^%["', ''):gsub('"%]$', '')
-            b.Text = " [X] " .. shortName
-            b.MouseButton1Click:Connect(function() 
-                currentSelectionGUID = data.guid
-                updateDetailsView()
-                refreshSelectionColors() 
-            end)
-            b.Parent = RedListScroll
-        end
-    end)
+    -- Теперь функция выполняется только в основном потоке через флаг
+    if not RedListScroll then return end
+    for _, v in pairs(RedListScroll:GetChildren()) do 
+        if v:IsA("TextButton") then v:Destroy() end 
+    end
+    for path, data in pairs(ManualBannedPaths) do
+        local b = Instance.new("TextButton")
+        b.Size = UDim2.new(1, -6, 0, 25)
+        b:SetAttribute("GUID", data.guid)
+        b.BackgroundColor3 = (currentSelectionGUID == data.guid) and Color3.fromRGB(100, 50, 200) or Color3.fromRGB(100, 35, 35)
+        b.TextColor3 = Color3.new(1,1,1)
+        b.Font = Enum.Font.SourceSans
+        b.TextSize = 11
+        b.BorderSizePixel = 0
+        local shortName = data.name or (path:match("[^%.%[%]]+$") or path):gsub('^%["', ''):gsub('"%]$', '')
+        b.Text = " [X] " .. shortName
+        b.MouseButton1Click:Connect(function() 
+            currentSelectionGUID = data.guid
+            updateDetailsView()
+            refreshSelectionColors() 
+        end)
+        b.Parent = RedListScroll
+    end
 end
 
 -- HEADER
@@ -310,14 +309,12 @@ local function addLog(rem, args, isSelf, typeLabel)
                 local remoteName = "Unknown"
                 pcall(function() remoteName = tostring(rem.Name) end)
                 
-                -- Оборачиваем в task.spawn для безопасного обновления UI из хука
-                task.spawn(function()
-                    ManualBannedPaths[eventPath] = {guid = generateGUID(), name = remoteName, details = "AUTO-BANNED\n"..log, detailsPretty = "AUTO-BANNED\n"..logP}
-                    local nM = {}
-                    for _, m in ipairs(MainMemory) do if not (m.path == eventPath and not m.isSelf) then table.insert(nM, m) end end
-                    MainMemory, lastCount, currentSelectionGUID = nM, -1, nil
-                    updateRedListUI() 
-                end)
+                -- Вместо прямого вызова UI, ставим флаг
+                ManualBannedPaths[eventPath] = {guid = generateGUID(), name = remoteName, details = "AUTO-BANNED\n"..log, detailsPretty = "AUTO-BANNED\n"..logP}
+                local nM = {}
+                for _, m in ipairs(MainMemory) do if not (m.path == eventPath and not m.isSelf) then table.insert(nM, m) end end
+                MainMemory, lastCount, currentSelectionGUID = nM, -1, nil
+                redListNeedsUpdate = true 
                 return 
             end
         else AntiSpamCounts[eventPath] = 0 end
@@ -360,7 +357,7 @@ DelBtn.MouseButton1Click:Connect(function()
     end
     if foundInBan then
         ManualBannedPaths[targetPath] = nil
-        updateRedListUI()
+        redListNeedsUpdate = true
         feedback(DelBtn, "UNBANNED")
     else
         local nM = {}
@@ -381,7 +378,7 @@ BlockBtn.MouseButton1Click:Connect(function()
             local nM = {}
             for _, m in ipairs(MainMemory) do if not (m.path == d.path and not m.isSelf) then table.insert(nM, m) end end
             MainMemory, lastCount, currentSelectionGUID = nM, -1, nil
-            updateRedListUI() 
+            redListNeedsUpdate = true
             Details.Text = "Banned."
             forceUpdateCanvas()
             feedback(BlockBtn, "BANNED") break
@@ -405,25 +402,33 @@ MinBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- RENDER
+-- RENDER LOOP (Основной поток для UI)
 task.spawn(function()
     while task.wait(0.5) do
-        if not ContentFrame.Visible or #MainMemory == lastCount then continue end
-        lastCount = #MainMemory
-        for _, v in pairs(Scroll:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
-        local sorted = {}
-        for _, d in ipairs(MainMemory) do if d.isSelf then table.insert(sorted, d) end end
-        for _, d in ipairs(MainMemory) do if not d.isSelf then table.insert(sorted, d) end end
-        for i, d in ipairs(sorted) do
-            local b = Instance.new("TextButton")
-            b.Size, b.LayoutOrder, b.BorderSizePixel = UDim2.new(1, -6, 0, 30), i, 0
-            b.Text = string.format("[%s]%s %s", d.type, (d.isSelf and " [S]" or ""), d.name)
-            b:SetAttribute("GUID", d.guid)
-            b:SetAttribute("IsSelf", d.isSelf)
-            b.BackgroundColor3 = (currentSelectionGUID == d.guid) and Color3.fromRGB(100, 50, 200) or (d.isSelf and Color3.fromRGB(45, 90, 45) or Color3.fromRGB(40, 40, 45))
-            b.TextColor3, b.Font, b.TextSize = Color3.new(1,1,1), Enum.Font.SourceSans, 12
-            b.MouseButton1Click:Connect(function() currentSelectionGUID = d.guid updateDetailsView() refreshSelectionColors() end)
-            b.Parent = Scroll
+        -- Проверка обновления основного лога
+        if ContentFrame.Visible and #MainMemory ~= lastCount then 
+            lastCount = #MainMemory
+            for _, v in pairs(Scroll:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
+            local sorted = {}
+            for _, d in ipairs(MainMemory) do if d.isSelf then table.insert(sorted, d) end end
+            for _, d in ipairs(MainMemory) do if not d.isSelf then table.insert(sorted, d) end end
+            for i, d in ipairs(sorted) do
+                local b = Instance.new("TextButton")
+                b.Size, b.LayoutOrder, b.BorderSizePixel = UDim2.new(1, -6, 0, 30), i, 0
+                b.Text = string.format("[%s]%s %s", d.type, (d.isSelf and " [S]" or ""), d.name)
+                b:SetAttribute("GUID", d.guid)
+                b:SetAttribute("IsSelf", d.isSelf)
+                b.BackgroundColor3 = (currentSelectionGUID == d.guid) and Color3.fromRGB(100, 50, 200) or (d.isSelf and Color3.fromRGB(45, 90, 45) or Color3.fromRGB(40, 40, 45))
+                b.TextColor3, b.Font, b.TextSize = Color3.new(1,1,1), Enum.Font.SourceSans, 12
+                b.MouseButton1Click:Connect(function() currentSelectionGUID = d.guid updateDetailsView() refreshSelectionColors() end)
+                b.Parent = Scroll
+            end
+        end
+
+        -- Безопасное обновление Бан-листа
+        if redListNeedsUpdate then
+            redListNeedsUpdate = false
+            updateRedListUI()
         end
     end
 end)
