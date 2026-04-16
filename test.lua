@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.6.9 FIXED & OPTIMIZED ]] --
+-- [[ KRALLDEN SPY v9.7.0 FIXED & OPTIMIZED ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -88,10 +88,9 @@ end
 
 local function forceUpdateCanvas()
     if not Details or not DetailsScroll then return end
-    local width = DetailsScroll.AbsoluteSize.X - 45 -- Запас для скроллбара и отступов
+    local width = DetailsScroll.AbsoluteSize.X - 45 
     if width <= 0 then width = 413 end
     
-    -- Очистка текста от мусорных символов, которые ломают перенос
     local cleanText = Details.Text:gsub("%z", "") 
     
     local size = TextService:GetTextSize(cleanText, Details.TextSize, Details.Font, Vector2.new(width, math.huge))
@@ -158,7 +157,7 @@ local Header = Instance.new("Frame")
 Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(25, 25, 30); Header.ZIndex = 10; Header.BorderSizePixel = 0; Header.Parent = Main
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0); Title.Text = "KRALLDEN SPY v9.6.9"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0; Title.Parent = Header
+Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0); Title.Text = "KRALLDEN SPY v9.7.0"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0; Title.Parent = Header
 
 local MinBtn = Instance.new("TextButton")
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "-"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0; MinBtn.Parent = Header
@@ -243,7 +242,7 @@ local function addLog(rem, args, isSelf, typeLabel)
         local t = typeof(v)
         
         if t == "string" then 
-            return '"' .. v:gsub("%z", "") .. '"' -- Очистка от нуль-байтов
+            return '"' .. v:gsub("%z", "") .. '"' 
         elseif t == "table" then
             local isArray, count = true, 0
             pcall(function() for k, val in pairs(v) do count = count + 1; if type(k) ~= "number" or k ~= count then isArray = false break end end end)
@@ -262,7 +261,6 @@ local function addLog(rem, args, isSelf, typeLabel)
                 local items = {}
                 local keys = {}
                 for k in pairs(v) do table.insert(keys, k) end
-                -- АНТИ-ПРОВЕРКА: Сортируем ключи словаря, чтобы порядок всегда был одинаковым
                 table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
                 
                 for _, k in ipairs(keys) do
@@ -311,7 +309,6 @@ local function addLog(rem, args, isSelf, typeLabel)
         if selfMode then
             if #SelfStorage[eventPath] > 0 then alreadyExists = true end
         else
-            -- Благодаря сортировке ключей в parseValue, fArgs теперь всегда одинаков для одинаковых данных
             for _, entry in ipairs(SelfStorage[eventPath]) do
                 if entry.args == fArgs then alreadyExists = true break end
             end
@@ -386,25 +383,41 @@ end)
 DelBtn.MouseButton1Click:Connect(function()
     if not currentSelectionGUID then return end
     local targetPath, foundInBan = nil, false
+    
     for path, data in pairs(ManualBannedPaths) do
         if data.guid == currentSelectionGUID then targetPath, foundInBan = path, true break end
     end
+    
     if foundInBan then
         ManualBannedPaths[targetPath] = nil
         redListNeedsUpdate = true
         feedback(DelBtn, "UNBANNED")
     else
-        local nM = {}
-        for _, m in ipairs(MainMemory) do 
-            if m.guid == currentSelectionGUID then
-                targetPath = m.path
-                if m.isSelf then SelfStorage[targetPath] = nil end
-            else
-                table.insert(nM, m) 
-            end 
+        local targetEntry = nil
+        for _, m in ipairs(MainMemory) do
+            if m.guid == currentSelectionGUID then targetEntry = m break end
         end
-        MainMemory = nM
-        feedback(DelBtn, "DELETED")
+        
+        if targetEntry then
+            targetPath = targetEntry.path
+            -- Считаем сколько еще кнопок с таким путем в списке
+            local pathCount = 0
+            for _, m in ipairs(MainMemory) do
+                if m.path == targetPath then pathCount = pathCount + 1 end
+            end
+            
+            -- Если это была последняя кнопка с таким путем, чистим память пути
+            if targetEntry.isSelf and pathCount <= 1 then
+                SelfStorage[targetPath] = nil
+            end
+            
+            local nM = {}
+            for _, m in ipairs(MainMemory) do 
+                if m.guid ~= currentSelectionGUID then table.insert(nM, m) end 
+            end
+            MainMemory = nM
+            feedback(DelBtn, "DELETED")
+        end
     end
     lastCount, currentSelectionGUID = -1, nil
     Details.Text = ""
@@ -513,16 +526,16 @@ ClearSelfBtn.MouseButton1Click:Connect(function()
     feedback(ClearSelfBtn, "CLEARED")
 end)
 
--- УЛУЧШЕННЫЙ EXECUTE С ПРОВЕРКОЙ ИЗМЕНЕНИЙ
+-- EXECUTE FIXED
 local ExecBtn = createBotBtn("EXECUTE", UDim2.new(0, 432, 0.83, 0), nil, Color3.fromRGB(120, 60, 60))
 ExecBtn.MouseButton1Click:Connect(function() 
     if not currentSelectionGUID then return end
     
     local currentContent = Details.Text
-    local newArgs = currentContent:match("Args:?%s*(.-)\n\nScript")
+    -- Более гибкий паттерн для захвата аргументов (игнорирует лишние переносы при SORT ON)
+    local newArgs = currentContent:match("Args:?%s*(.-)%s*\n\nScript")
     local newScriptBody = currentContent:match("Script:\n(.*)")
     
-    -- Поиск оригинальных данных для сравнения
     local original = nil
     for _, m in ipairs(MainMemory) do
         if m.guid == currentSelectionGUID then original = m break end
@@ -532,7 +545,7 @@ ExecBtn.MouseButton1Click:Connect(function()
             if b.guid == currentSelectionGUID then 
                 original = { 
                     path = currentContent:match("Path:%s*(.-)\n\n"),
-                    argsStr = currentContent:match("Args:?%s*(.-)\n\nScript"),
+                    argsStr = currentContent:match("Args:?%s*(.-)%s*\n\nScript"),
                     method = currentContent:match("Script:\n.-:(%w+)%("),
                     fullText = b.details 
                 }
@@ -547,18 +560,16 @@ ExecBtn.MouseButton1Click:Connect(function()
         local cleanNewArgs = newArgs and newArgs:gsub("^%s*(.-)%s*$", "%1") or ""
         local cleanOldArgs = original.argsStr and original.argsStr:gsub("^%s*(.-)%s*$", "%1") or "None"
         
-        -- Сравниваем аргументы (учитывая "None")
-        if cleanNewArgs ~= cleanOldArgs then
-            -- Если изменились аргументы -> Собираем скрипт из новых аргументов
+        -- Если аргументы в боксе отличаются от того, что было при логировании
+        if cleanNewArgs ~= cleanOldArgs and cleanNewArgs ~= "" then
             local path = currentContent:match("Path:%s*(.-)\n\n") or original.path
             local method = original.method or "FireServer"
             finalScript = string.format("%s:%s(%s)", path, method, (cleanNewArgs == "None" and "" or cleanNewArgs))
         else
-            -- Аргументы не тронуты -> Берем то, что в поле Script
+            -- Если не меняли или очистили - берем из поля Script
             finalScript = newScriptBody or currentContent
         end
     else
-        -- Если оригинал не найден в памяти, выполняем то что есть в поле Script
         finalScript = newScriptBody or currentContent
     end
 
