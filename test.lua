@@ -36,6 +36,10 @@ Main.BackgroundColor3 = Color3.fromRGB(15, 15, 20); Main.Size = UDim2.new(0, 820
 
 local MainMemory, PathFilter, ManualBannedPaths = {}, {}, {}
 local AntiSpamCooldowns, AntiSpamCounts = {}, {}
+-- Новые таблицы кеша для Self-ивентов
+local SelfPathCache = {}     -- для режима SELF ON
+local SelfFullCache = {}     -- для режима SELF OFF (path+args)
+
 local selfMode, controlMode, antiSpam = true, true, true
 local spyFS, spyFC, spyIS = true, false, false
 local currentSelectionGUID, lastCount = nil, 0
@@ -229,11 +233,8 @@ local function addLog(rem, args, isSelf, typeLabel)
     if (typeLabel == "FS" and not spyFS) or (typeLabel == "FC" and not spyFC) or (typeLabel == "IS" and not spyIS) then return end
     local eventPath = getSafePath(rem)
     
-    -- Фильтр: если не self, то проверяем бан-лист и controlMode
-    if not isSelf then
-        if ManualBannedPaths[eventPath] then return end
-        if controlMode then return end -- Если CONTROL ON, чужие ивенты вообще не логаем
-    end
+    -- SELF ИГНОРИРУЕТ ЧЕРНЫЙ СПИСОК
+    if not isSelf and ManualBannedPaths[eventPath] then return end
 
     local function parseValue(v, d, pretty, indent)
         d = d or 0
@@ -296,23 +297,26 @@ local function addLog(rem, args, isSelf, typeLabel)
     
     local fArgs, fArgsP = table.concat(argList, ","), table.concat(argListPretty, ",\n")
 
-    -- ЛОГИКА БЛОКИРОВКИ ПОВТОРОВ (MEMORY CHECK)
+    -- ===== НОВАЯ ЛОГИКА ПРОВЕРКИ (SELF И NON-SELF) =====
     if isSelf then
         if selfMode then
-            -- SELF ON: Проверяем только Путь. Если путь уже есть в памяти - блок.
-            for _, m in ipairs(MainMemory) do
-                if m.path == eventPath and m.isSelf then return end
-            end
+            -- SELF ON -> проверка только path
+            if SelfPathCache[eventPath] then return end
+            SelfPathCache[eventPath] = true
         else
-            -- SELF OFF: Проверяем Путь + Аргументы. Если и то и то совпало - блок.
-            for _, m in ipairs(MainMemory) do
-                if m.path == eventPath and m.isSelf and m.argsStr == fArgs then return end
-            end
+            -- SELF OFF -> проверка path + args
+            local key = eventPath .. "|" .. fArgs
+            if SelfFullCache[key] then return end
+            SelfFullCache[key] = true
         end
     else
-        -- Для чужих ивентов стандартная проверка на дубликаты (Путь + Аргументы)
+        -- NON-SELF LOGIC (Игнорирует проверку, если включен Control)
         for _, m in ipairs(MainMemory) do
-            if m.path == eventPath and not m.isSelf and m.argsStr == fArgs then return end
+            if m.path == eventPath and not m.isSelf then
+                if controlMode or m.argsStr == fArgs then
+                    return
+                end
+            end
         end
     end
 
@@ -320,13 +324,14 @@ local function addLog(rem, args, isSelf, typeLabel)
     local log = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, fArgs=="" and "None" or fArgs, eventPath, method, fArgs)
     local logP = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, fArgsP=="" and "None" or "\n"..fArgsP, eventPath, method, fArgs)
 
-    -- Анти-спам для чужих ивентов
-    if not isSelf and antiSpam then
+    -- АНТИСПАМ (ИГНОРИРУЕТ SELF)
+    if not isSelf and not controlMode and antiSpam then
         if (tick() - (AntiSpamCooldowns[eventPath] or 0)) < 0.4 then
             AntiSpamCounts[eventPath] = (AntiSpamCounts[eventPath] or 0) + 1
             if AntiSpamCounts[eventPath] >= 4 then
                 local remoteName = "Unknown"
                 pcall(function() remoteName = tostring(rem.Name) end)
+                
                 ManualBannedPaths[eventPath] = {guid = generateGUID(), name = remoteName, details = "AUTO-BANNED\n"..log, detailsPretty = "AUTO-BANNED\n"..logP}
                 local nM = {}
                 for _, m in ipairs(MainMemory) do if not (m.path == eventPath and not m.isSelf) then table.insert(nM, m) end end
@@ -339,7 +344,10 @@ local function addLog(rem, args, isSelf, typeLabel)
     end
 
     local newEvent = {guid = generateGUID(), name = tostring(rem.Name), type = typeLabel, isSelf = isSelf, fullText = log, fullTextPretty = logP, path = eventPath, argsStr = fArgs}
-    table.insert(MainMemory, 1, newEvent)
+    for i = #MainMemory, 1, -1 do
+        MainMemory[i+1] = MainMemory[i]
+    end
+    MainMemory[1] = newEvent
 end
 
 -- HOOKS
@@ -366,16 +374,33 @@ end)
 DelBtn.MouseButton1Click:Connect(function()
     if not currentSelectionGUID then return end
     local targetPath, foundInBan = nil, false
+    
+    -- Проверка в бан-листе
     for path, data in pairs(ManualBannedPaths) do
         if data.guid == currentSelectionGUID then targetPath, foundInBan = path, true break end
     end
+    
     if foundInBan then
         ManualBannedPaths[targetPath] = nil
         redListNeedsUpdate = true
         feedback(DelBtn, "UNBANNED")
     else
+        -- Удаление из основного списка и ОЧИСТКА КЕША
         local nM = {}
-        for _, m in ipairs(MainMemory) do if m.guid ~= currentSelectionGUID then table.insert(nM, m) end end
+        for _, m in ipairs(MainMemory) do 
+            if m.guid == currentSelectionGUID then
+                targetPath = m.path
+                -- Чистим кеши, чтобы ивент мог вернуться
+                SelfPathCache[targetPath] = nil
+                for k in pairs(SelfFullCache) do
+                    if k:find(targetPath, 1, true) then
+                        SelfFullCache[k] = nil
+                    end
+                end
+            else
+                table.insert(nM, m) 
+            end 
+        end
         MainMemory = nM
         feedback(DelBtn, "DELETED")
     end
@@ -486,6 +511,9 @@ ClearSelfBtn.MouseButton1Click:Connect(function()
     local nM = {}
     for _, m in ipairs(MainMemory) do if not m.isSelf then table.insert(nM, m) end end
     MainMemory, lastCount = nM, -1 
+    -- Полная очистка кеша Self при нажатии Clear Self
+    SelfPathCache = {}
+    SelfFullCache = {}
     feedback(ClearSelfBtn, "CLEARED")
 end)
 
