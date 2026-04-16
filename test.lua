@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.6.6 FIXED ]] --
+-- [[ KRALLDEN SPY v9.6.7 FIXED ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -37,8 +37,7 @@ Main.BackgroundColor3 = Color3.fromRGB(15, 15, 20); Main.Size = UDim2.new(0, 820
 local MainMemory, PathFilter, ManualBannedPaths = {}, {}, {}
 local AntiSpamCooldowns, AntiSpamCounts = {}, {}
 
--- ЕДИНАЯ ТАБЛИЦА ДЛЯ SELF ИВЕНТОВ
-local SelfStorage = {} -- Структура: [path] = { {args = "...", fullKey = "path|args"}, ... }
+local SelfStorage = {} 
 
 local selfMode, controlMode, antiSpam = true, true, true
 local spyFS, spyFC, spyIS = true, false, false
@@ -53,7 +52,6 @@ end
 
 local RedListScroll, Scroll, DetailsScroll, Details, ContentFrame
 
--- Функция фидбека
 local activeFeedbacks = {}
 local function feedback(button, tempText)
     if not button or typeof(button) ~= "Instance" or activeFeedbacks[button] then return end
@@ -157,7 +155,7 @@ local Header = Instance.new("Frame")
 Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(25, 25, 30); Header.ZIndex = 10; Header.BorderSizePixel = 0; Header.Parent = Main
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0); Title.Text = "KRALLDEN SPY v9.6.6"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0; Title.Parent = Header
+Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0); Title.Text = "KRALLDEN SPY v9.6.7"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0; Title.Parent = Header
 
 local MinBtn = Instance.new("TextButton")
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "-"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0; MinBtn.Parent = Header
@@ -233,7 +231,6 @@ local function addLog(rem, args, isSelf, typeLabel)
     if (typeLabel == "FS" and not spyFS) or (typeLabel == "FC" and not spyFC) or (typeLabel == "IS" and not spyIS) then return end
     local eventPath = getSafePath(rem)
     
-    -- SELF ИГНОРИРУЕТ ЧЕРНЫЙ СПИСОК
     if not isSelf and ManualBannedPaths[eventPath] then return end
 
     local function parseValue(v, d, pretty, indent)
@@ -297,35 +294,22 @@ local function addLog(rem, args, isSelf, typeLabel)
     
     local fArgs, fArgsP = table.concat(argList, ","), table.concat(argListPretty, ",\n")
 
-    -- ===== НОВАЯ УНИФИЦИРОВАННАЯ ЛОГИКА SELF =====
     if isSelf then
         if not SelfStorage[eventPath] then SelfStorage[eventPath] = {} end
-        
         local alreadyExists = false
         if selfMode then
-            -- SELF ON: Если в хранилище для этого пути уже есть хоть одна запись — пропускаем
             if #SelfStorage[eventPath] > 0 then alreadyExists = true end
         else
-            -- SELF OFF: Проверяем конкретную связку path + args
             for _, entry in ipairs(SelfStorage[eventPath]) do
-                if entry.args == fArgs then
-                    alreadyExists = true
-                    break
-                end
+                if entry.args == fArgs then alreadyExists = true break end
             end
         end
-        
         if alreadyExists then return end
-        
-        -- Записываем в общую таблицу
         table.insert(SelfStorage[eventPath], {args = fArgs, fullKey = eventPath .. "|" .. fArgs})
     else
-        -- NON-SELF LOGIC
         for _, m in ipairs(MainMemory) do
             if m.path == eventPath and not m.isSelf then
-                if controlMode or m.argsStr == fArgs then
-                    return
-                end
+                if controlMode or m.argsStr == fArgs then return end
             end
         end
     end
@@ -334,14 +318,12 @@ local function addLog(rem, args, isSelf, typeLabel)
     local log = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, fArgs=="" and "None" or fArgs, eventPath, method, fArgs)
     local logP = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, fArgsP=="" and "None" or "\n"..fArgsP, eventPath, method, fArgs)
 
-    -- АНТИСПАМ (ИГНОРИРУЕТ SELF)
     if not isSelf and not controlMode and antiSpam then
         if (tick() - (AntiSpamCooldowns[eventPath] or 0)) < 0.4 then
             AntiSpamCounts[eventPath] = (AntiSpamCounts[eventPath] or 0) + 1
             if AntiSpamCounts[eventPath] >= 4 then
                 local remoteName = "Unknown"
                 pcall(function() remoteName = tostring(rem.Name) end)
-                
                 ManualBannedPaths[eventPath] = {guid = generateGUID(), name = remoteName, details = "AUTO-BANNED\n"..log, detailsPretty = "AUTO-BANNED\n"..logP}
                 local nM = {}
                 for _, m in ipairs(MainMemory) do if not (m.path == eventPath and not m.isSelf) then table.insert(nM, m) end end
@@ -353,10 +335,18 @@ local function addLog(rem, args, isSelf, typeLabel)
         AntiSpamCooldowns[eventPath] = tick()
     end
 
-    local newEvent = {guid = generateGUID(), name = tostring(rem.Name), type = typeLabel, isSelf = isSelf, fullText = log, fullTextPretty = logP, path = eventPath, argsStr = fArgs}
-    for i = #MainMemory, 1, -1 do
-        MainMemory[i+1] = MainMemory[i]
-    end
+    local newEvent = {
+        guid = generateGUID(), 
+        name = tostring(rem.Name), 
+        type = typeLabel, 
+        isSelf = isSelf, 
+        fullText = log, 
+        fullTextPretty = logP, 
+        path = eventPath, 
+        argsStr = fArgs,
+        method = method
+    }
+    for i = #MainMemory, 1, -1 do MainMemory[i+1] = MainMemory[i] end
     MainMemory[1] = newEvent
 end
 
@@ -384,11 +374,9 @@ end)
 DelBtn.MouseButton1Click:Connect(function()
     if not currentSelectionGUID then return end
     local targetPath, foundInBan = nil, false
-    
     for path, data in pairs(ManualBannedPaths) do
         if data.guid == currentSelectionGUID then targetPath, foundInBan = path, true break end
     end
-    
     if foundInBan then
         ManualBannedPaths[targetPath] = nil
         redListNeedsUpdate = true
@@ -398,10 +386,7 @@ DelBtn.MouseButton1Click:Connect(function()
         for _, m in ipairs(MainMemory) do 
             if m.guid == currentSelectionGUID then
                 targetPath = m.path
-                -- Чистим единое хранилище Self для этого пути
-                if m.isSelf then
-                    SelfStorage[targetPath] = nil
-                end
+                if m.isSelf then SelfStorage[targetPath] = nil end
             else
                 table.insert(nM, m) 
             end 
@@ -467,11 +452,7 @@ task.spawn(function()
                 b.Parent = Scroll
             end
         end
-
-        if redListNeedsUpdate then
-            redListNeedsUpdate = false
-            updateRedListUI()
-        end
+        if redListNeedsUpdate then redListNeedsUpdate = false updateRedListUI() end
     end
 end)
 
@@ -516,17 +497,68 @@ ClearSelfBtn.MouseButton1Click:Connect(function()
     local nM = {}
     for _, m in ipairs(MainMemory) do if not m.isSelf then table.insert(nM, m) end end
     MainMemory, lastCount = nM, -1 
-    -- ПОЛНАЯ ОЧИСТКА ХРАНИЛИЩА SELF
     SelfStorage = {}
     feedback(ClearSelfBtn, "CLEARED")
 end)
 
+-- УЛУЧШЕННЫЙ EXECUTE С ПРОВЕРКОЙ ИЗМЕНЕНИЙ
 local ExecBtn = createBotBtn("EXECUTE", UDim2.new(0, 432, 0.83, 0), nil, Color3.fromRGB(120, 60, 60))
 ExecBtn.MouseButton1Click:Connect(function() 
-    local s = Details.Text:match("Script:\n(.*)") or Details.Text
-    if s and s ~= "" then 
-        local f, err = loadstring(s)
-        if f then task.spawn(f) feedback(ExecBtn, "DONE!") else feedback(ExecBtn, "ERROR!") end 
+    if not currentSelectionGUID then return end
+    
+    local currentContent = Details.Text
+    local newArgs = currentContent:match("Args:?%s*(.-)\n\nScript")
+    local newScriptBody = currentContent:match("Script:\n(.*)")
+    
+    -- Поиск оригинальных данных для сравнения
+    local original = nil
+    for _, m in ipairs(MainMemory) do
+        if m.guid == currentSelectionGUID then original = m break end
+    end
+    if not original then
+        for _, b in pairs(ManualBannedPaths) do
+            if b.guid == currentSelectionGUID then 
+                original = { 
+                    path = currentContent:match("Path:%s*(.-)\n\n"),
+                    argsStr = currentContent:match("Args:?%s*(.-)\n\nScript"),
+                    method = currentContent:match("Script:\n.-:(%w+)%("),
+                    fullText = b.details 
+                }
+                break 
+            end
+        end
+    end
+
+    local finalScript = ""
+
+    if original then
+        local cleanNewArgs = newArgs and newArgs:gsub("^%s*(.-)%s*$", "%1") or ""
+        local cleanOldArgs = original.argsStr and original.argsStr:gsub("^%s*(.-)%s*$", "%1") or "None"
+        
+        -- Сравниваем аргументы (учитывая "None")
+        if cleanNewArgs ~= cleanOldArgs then
+            -- Если изменились аргументы -> Собираем скрипт из новых аргументов
+            local path = currentContent:match("Path:%s*(.-)\n\n") or original.path
+            local method = original.method or "FireServer"
+            finalScript = string.format("%s:%s(%s)", path, method, (cleanNewArgs == "None" and "" or cleanNewArgs))
+        else
+            -- Аргументы не тронуты -> Берем то, что в поле Script
+            finalScript = newScriptBody or currentContent
+        end
+    else
+        -- Если оригинал не найден в памяти, выполняем то что есть в поле Script
+        finalScript = newScriptBody or currentContent
+    end
+
+    if finalScript and finalScript ~= "" then 
+        local f, err = loadstring(finalScript)
+        if f then 
+            task.spawn(f) 
+            feedback(ExecBtn, "DONE!") 
+        else 
+            warn("EXECUTE ERROR:", err)
+            feedback(ExecBtn, "ERROR!") 
+        end 
     end 
 end)
 
