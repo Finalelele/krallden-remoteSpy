@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.7.0 FIXED & OPTIMIZED ]] --
+-- [[ KRALLDEN SPY v9.7.1 FIXED & OPTIMIZED ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -157,7 +157,7 @@ local Header = Instance.new("Frame")
 Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(25, 25, 30); Header.ZIndex = 10; Header.BorderSizePixel = 0; Header.Parent = Main
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0); Title.Text = "KRALLDEN SPY v9.7.0"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0; Title.Parent = Header
+Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0); Title.Text = "KRALLDEN SPY v9.7.1"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0; Title.Parent = Header
 
 local MinBtn = Instance.new("TextButton")
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "-"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0; MinBtn.Parent = Header
@@ -400,15 +400,18 @@ DelBtn.MouseButton1Click:Connect(function()
         
         if targetEntry then
             targetPath = targetEntry.path
-            -- Считаем сколько еще кнопок с таким путем в списке
-            local pathCount = 0
-            for _, m in ipairs(MainMemory) do
-                if m.path == targetPath then pathCount = pathCount + 1 end
-            end
             
-            -- Если это была последняя кнопка с таким путем, чистим память пути
-            if targetEntry.isSelf and pathCount <= 1 then
-                SelfStorage[targetPath] = nil
+            -- FIX: Удаляем запись из SelfStorage, чтобы она могла заспавниться снова
+            if targetEntry.isSelf and SelfStorage[targetPath] then
+                for i, entry in ipairs(SelfStorage[targetPath]) do
+                    if entry.args == targetEntry.argsStr then
+                        table.remove(SelfStorage[targetPath], i)
+                        break
+                    end
+                end
+                if #SelfStorage[targetPath] == 0 then
+                    SelfStorage[targetPath] = nil
+                end
             end
             
             local nM = {}
@@ -514,15 +517,23 @@ ClearLogBtn.MouseButton1Click:Connect(function()
     local nM = {}
     for _, m in ipairs(MainMemory) do if m.isSelf then table.insert(nM, m) end end
     MainMemory, lastCount = nM, -1 
+    currentSelectionGUID = nil
+    Details.Text = ""
+    forceUpdateCanvas()
     feedback(ClearLogBtn, "CLEARED")
 end)
 
 local ClearSelfBtn = createBotBtn("CLEAR SELF", UDim2.new(0, 544, 0.68, 0), UDim2.new(0, 108, 0, 58), Color3.fromRGB(100, 80, 60))
 ClearSelfBtn.MouseButton1Click:Connect(function()
+    -- FIX: Полная очистка списка кнопок Self и таблицы хранилища
     local nM = {}
     for _, m in ipairs(MainMemory) do if not m.isSelf then table.insert(nM, m) end end
-    MainMemory, lastCount = nM, -1 
+    MainMemory = nM
     SelfStorage = {}
+    lastCount = -1 
+    currentSelectionGUID = nil
+    Details.Text = ""
+    forceUpdateCanvas()
     feedback(ClearSelfBtn, "CLEARED")
 end)
 
@@ -532,7 +543,6 @@ ExecBtn.MouseButton1Click:Connect(function()
     if not currentSelectionGUID then return end
     
     local currentContent = Details.Text
-    -- Более гибкий паттерн для захвата аргументов (игнорирует лишние переносы при SORT ON)
     local newArgs = currentContent:match("Args:?%s*(.-)%s*\n\nScript")
     local newScriptBody = currentContent:match("Script:\n(.*)")
     
@@ -560,13 +570,11 @@ ExecBtn.MouseButton1Click:Connect(function()
         local cleanNewArgs = newArgs and newArgs:gsub("^%s*(.-)%s*$", "%1") or ""
         local cleanOldArgs = original.argsStr and original.argsStr:gsub("^%s*(.-)%s*$", "%1") or "None"
         
-        -- Если аргументы в боксе отличаются от того, что было при логировании
         if cleanNewArgs ~= cleanOldArgs and cleanNewArgs ~= "" then
             local path = currentContent:match("Path:%s*(.-)\n\n") or original.path
             local method = original.method or "FireServer"
             finalScript = string.format("%s:%s(%s)", path, method, (cleanNewArgs == "None" and "" or cleanNewArgs))
         else
-            -- Если не меняли или очистили - берем из поля Script
             finalScript = newScriptBody or currentContent
         end
     else
