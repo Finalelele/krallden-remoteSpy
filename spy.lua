@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.7.3 FIXED & OPTIMIZED ]] --
+-- [[ KRALLDEN SPY v9.7.4 FIXED & OPTIMIZED ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -158,7 +158,7 @@ local Header = Instance.new("Frame")
 Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(25, 25, 30); Header.ZIndex = 10; Header.BorderSizePixel = 0; Header.Parent = Main
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0); Title.Text = "KRALLDEN SPY v9.7.3"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0; Title.Parent = Header
+Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0); Title.Text = "KRALLDEN SPY v9.7.4"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0; Title.Parent = Header
 
 local MinBtn = Instance.new("TextButton")
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "-"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0; MinBtn.Parent = Header
@@ -364,7 +364,6 @@ local function addLog(rem, args, isSelf, typeLabel)
         method = method
     }
     
-    -- ОПТИМИЗАЦИЯ ДЛЯ ЭМУЛЯТОРОВ: Нативный insert и лимитер логов
     table.insert(MainMemory, 1, newEvent)
     if #MainMemory > MAX_MEMORY then
         table.remove(MainMemory)
@@ -376,7 +375,6 @@ local mt = getrawmetatable(game)
 local old = mt.__namecall
 setreadonly(mt, false)
 
--- ОПТИМИЗАЦИЯ: Кэшируем методы заранее
 local namecallMethods = {
     FireServer = "FS", fireserver = "FS",
     InvokeServer = "IS", invokeserver = "IS",
@@ -388,7 +386,6 @@ mt.__namecall = newcclosure(function(self, ...)
     local spyType = namecallMethods[tostring(m)]
     
     if spyType then
-        -- ОПТИМИЗАЦИЯ: Фильтруем до вызова тяжелого task.spawn
         if (spyType == "FS" and spyFS) or (spyType == "FC" and spyFC) or (spyType == "IS" and spyIS) then
             local s = checkcaller()
             task.spawn(addLog, self, {...}, s, spyType)
@@ -484,7 +481,7 @@ MinBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- RENDER LOOP (Слегка увеличен таймаут для разгрузки эмулятора)
+-- RENDER LOOP
 task.spawn(function()
     while task.wait(0.7) do
         if ContentFrame.Visible and #MainMemory ~= lastCount then 
@@ -518,10 +515,17 @@ local function createBotBtn(text, pos, size, color)
     return b
 end
 
+-- НАДЕЖНЫЙ ПАРСИНГ ТЕКСТА (ЗАЩИТА ОТ КРИВЫХ ПЕРЕНОСОВ И СИМВОЛОВ)
 local CopyArgsBtn = createBotBtn("COPY ARGS", UDim2.new(0, 205, 0.68, 0), UDim2.new(0, 108, 0, 58), Color3.fromRGB(45, 90, 45))
 CopyArgsBtn.MouseButton1Click:Connect(function() 
-    local a = Details.Text:match("Args:?%s*(.-)\n\nScript")
-    if a then setclipboard(a) feedback(CopyArgsBtn, "COPIED!") end
+    local content = Details.Text
+    local scriptMarker = content:find("Script:")
+    local argsStart = content:find("Args:")
+    
+    if argsStart and scriptMarker and argsStart < scriptMarker then
+        local a = content:sub(argsStart + 5, scriptMarker - 1):gsub("^%s+", ""):gsub("%s+$", "")
+        if a and a ~= "" then setclipboard(a) feedback(CopyArgsBtn, "COPIED!") end
+    end
 end)
 
 local SortBtn = createBotBtn("SORT: OFF", UDim2.new(0, 317, 0.68, 0), UDim2.new(0, 108, 0, 58), Color3.fromRGB(80, 80, 85))
@@ -533,8 +537,12 @@ end)
 
 local CopyScriptBtn = createBotBtn("COPY SCRIPT", UDim2.new(0, 205, 0.83, 0), nil, Color3.fromRGB(60, 60, 120))
 CopyScriptBtn.MouseButton1Click:Connect(function() 
-    local s = Details.Text:match("Script:\n(.*)")
-    if s then setclipboard(s) feedback(CopyScriptBtn, "COPIED!") end
+    local content = Details.Text
+    local scriptMarker = content:find("Script:")
+    if scriptMarker then
+        local s = content:sub(scriptMarker + 7):gsub("^%s+", "")
+        if s and s ~= "" then setclipboard(s) feedback(CopyScriptBtn, "COPIED!") end
+    end
 end)
 
 local ClearLogBtn = createBotBtn("CLEAR LOG", UDim2.new(0, 432, 0.68, 0), UDim2.new(0, 108, 0, 58), Color3.fromRGB(80, 80, 85))
@@ -561,26 +569,54 @@ ClearSelfBtn.MouseButton1Click:Connect(function()
     feedback(ClearSelfBtn, "CLEARED")
 end)
 
--- EXECUTE FIXED
+-- EXECUTE FIXED: ЖЕЛЕЗОБЕТОННЫЙ ПАРСИНГ БЕЗ ОШИБОК LOADSTRING
 local ExecBtn = createBotBtn("EXECUTE", UDim2.new(0, 432, 0.83, 0), nil, Color3.fromRGB(120, 60, 60))
 ExecBtn.MouseButton1Click:Connect(function() 
     if not currentSelectionGUID then return end
     
     local currentContent = Details.Text
-    local newArgs = currentContent:match("Args:?%s*(.-)%s*\n\nScript")
-    local newScriptBody = currentContent:match("Script:\n(.*)")
+    local scriptMarker = currentContent:find("Script:")
+    local argsStart = currentContent:find("Args:")
+    local pathStart = currentContent:find("Path:")
+    
+    local newScriptBody = ""
+    if scriptMarker then
+        newScriptBody = currentContent:sub(scriptMarker + 7):gsub("^%s+", "")
+    else
+        newScriptBody = currentContent
+    end
+    
+    local newArgs = ""
+    if argsStart and scriptMarker and argsStart < scriptMarker then
+        newArgs = currentContent:sub(argsStart + 5, scriptMarker - 1):gsub("^%s+", ""):gsub("%s+$", "")
+    end
+    
+    local newPath = ""
+    if pathStart and argsStart and pathStart < argsStart then
+        newPath = currentContent:sub(pathStart + 5, argsStart - 1):gsub("^%s+", ""):gsub("%s+$", "")
+    end
     
     local original = nil
     for _, m in ipairs(MainMemory) do
         if m.guid == currentSelectionGUID then original = m break end
     end
+    
     if not original then
         for _, b in pairs(ManualBannedPaths) do
             if b.guid == currentSelectionGUID then 
+                -- Надежное извлечение из забаненных записей
+                local bPathStart = b.details:find("Path:")
+                local bArgsStart = b.details:find("Args:")
+                local bScriptStart = b.details:find("Script:")
+                
+                local oPath = bPathStart and bArgsStart and b.details:sub(bPathStart + 5, bArgsStart - 1):gsub("^%s+", ""):gsub("%s+$", "") or ""
+                local oArgs = bArgsStart and bScriptStart and b.details:sub(bArgsStart + 5, bScriptStart - 1):gsub("^%s+", ""):gsub("%s+$", "") or "None"
+                local oMethod = b.details:match("Script:\n.-:(%w+)%(") or "FireServer"
+                
                 original = { 
-                    path = currentContent:match("Path:%s*(.-)\n\n"),
-                    argsStr = currentContent:match("Args:?%s*(.-)%s*\n\nScript"),
-                    method = currentContent:match("Script:\n.-:(%w+)%("),
+                    path = oPath,
+                    argsStr = oArgs,
+                    method = oMethod,
                     fullText = b.details,
                     fullTextPretty = b.detailsPretty
                 }
@@ -592,26 +628,27 @@ ExecBtn.MouseButton1Click:Connect(function()
     local finalScript = ""
 
     if original then
-        local cleanNewArgs = newArgs and newArgs:gsub("^%s*(.-)%s*$", "%1") or ""
+        local cleanNewArgs = newArgs
         local cleanOldArgs = original.argsStr and original.argsStr:gsub("^%s*(.-)%s*$", "%1") or "None"
         
         local cleanOldArgsPretty = "None"
         if original.fullTextPretty then
-            local extracted = original.fullTextPretty:match("Args:?%s*(.-)%s*\n\nScript")
-            if extracted then
-                cleanOldArgsPretty = extracted:gsub("^%s*(.-)%s*$", "%1")
+            local eArgsStart = original.fullTextPretty:find("Args:")
+            local eScriptStart = original.fullTextPretty:find("Script:")
+            if eArgsStart and eScriptStart and eArgsStart < eScriptStart then
+                cleanOldArgsPretty = original.fullTextPretty:sub(eArgsStart + 5, eScriptStart - 1):gsub("^%s+", ""):gsub("%s+$", "")
             end
         end
 
         if cleanNewArgs ~= cleanOldArgs and cleanNewArgs ~= cleanOldArgsPretty and cleanNewArgs ~= "" then
-            local path = currentContent:match("Path:%s*(.-)\n\n") or original.path
+            local p = (newPath ~= "" and newPath) or original.path
             local method = original.method or "FireServer"
-            finalScript = string.format("%s:%s(%s)", path, method, (cleanNewArgs == "None" and "" or cleanNewArgs))
+            finalScript = string.format("%s:%s(%s)", p, method, (cleanNewArgs == "None" and "" or cleanNewArgs))
         else
-            finalScript = newScriptBody or currentContent
+            finalScript = newScriptBody
         end
     else
-        finalScript = newScriptBody or currentContent
+        finalScript = newScriptBody
     end
 
     if finalScript and finalScript ~= "" then 
@@ -620,7 +657,7 @@ ExecBtn.MouseButton1Click:Connect(function()
             task.spawn(f) 
             feedback(ExecBtn, "EXECUTED!")
         else 
-            warn("EXECUTE ERROR:", err)
+            warn("EXECUTE ERROR:\n", err, "\nAttempted to run:\n", finalScript)
             feedback(ExecBtn, "ERROR!") 
         end 
     end 
