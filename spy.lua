@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.7.4 FIXED & OPTIMIZED ]] --
+-- [[ KRALLDEN SPY v9.7.5 FIXED & OPTIMIZED ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -36,7 +36,6 @@ Main.BackgroundColor3 = Color3.fromRGB(15, 15, 20); Main.Size = UDim2.new(0, 820
 
 local MainMemory, PathFilter, ManualBannedPaths = {}, {}, {}
 local AntiSpamCooldowns, AntiSpamCounts = {}, {}
-local MAX_MEMORY = 300 -- ЛИМИТ ДЛЯ ОПТИМИЗАЦИИ ЭМУЛЯТОРА
 
 local SelfStorage = {} 
 
@@ -143,7 +142,7 @@ local function updateRedListUI()
         b.TextSize = 11
         b.BorderSizePixel = 0
         local shortName = data.name or (path:match("[^%.%[%]]+$") or path):gsub('^%["', ''):gsub('"%]$', '')
-        b.Text = " [X] " .. shortName
+        b.Text = " [X] " .. shortName:gsub("\194\160", " ") -- Переводим NBSP обратно для красивого отображения в кнопке
         b.MouseButton1Click:Connect(function() 
             currentSelectionGUID = data.guid
             updateDetailsView()
@@ -158,7 +157,7 @@ local Header = Instance.new("Frame")
 Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(25, 25, 30); Header.ZIndex = 10; Header.BorderSizePixel = 0; Header.Parent = Main
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0); Title.Text = "KRALLDEN SPY v9.7.4"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0; Title.Parent = Header
+Title.Size = UDim2.new(0, 200, 1, 0); Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 15, 0, 0); Title.Text = "KRALLDEN SPY v9.7.5"; Title.TextColor3 = Color3.new(1, 1, 1); Title.Font = Enum.Font.SourceSansBold; Title.TextSize = 16; Title.ZIndex = 11; Title.TextXAlignment = 0; Title.Parent = Header
 
 local MinBtn = Instance.new("TextButton")
 MinBtn.Size = UDim2.new(0, 45, 0, 35); MinBtn.Position = UDim2.new(1, -45, 0, 0); MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180); MinBtn.Text = "-"; MinBtn.TextColor3 = Color3.new(1, 1, 1); MinBtn.TextSize = 22; MinBtn.ZIndex = 12; MinBtn.BorderSizePixel = 0; MinBtn.Parent = Header
@@ -215,7 +214,7 @@ local redListUI = Instance.new("UIListLayout")
 redListUI.SortOrder = Enum.SortOrder.LayoutOrder
 redListUI.Parent = RedListScroll
 
--- SMART PARSER (FIXED LOGIC FOR BRACKETS)
+-- SMART PARSER (ФИКС ПЕРЕНОСОВ С ПОМОЩЬЮ НЕРАЗРЫВНОГО ПРОБЕЛА)
 local function getSafePath(obj)
     local p = ""
     pcall(function() 
@@ -223,7 +222,8 @@ local function getSafePath(obj)
         while t and t ~= game do 
             local n = tostring(t.Name)
             local escapedName = n:gsub("\\", "\\\\"):gsub('"', '\\"'):gsub('\n', '\\n'):gsub('\r', '\\r')
-            local safeName = (n:match("^%d") or n:match("[%s%W]")) and '["'..escapedName..'"]' or n
+            -- Заменяем пробелы внутри квадратных скобок на неразрывный пробел (\194\160), чтобы TextBox не рвал путь на половине
+            local safeName = (n:match("^%d") or n:match("[%s%W]")) and '["'..escapedName:gsub(" ", "\194\160")..'"]' or n
             
             if p == "" then
                 p = safeName
@@ -365,9 +365,6 @@ local function addLog(rem, args, isSelf, typeLabel)
     }
     
     table.insert(MainMemory, 1, newEvent)
-    if #MainMemory > MAX_MEMORY then
-        table.remove(MainMemory)
-    end
 end
 
 -- HOOKS
@@ -493,7 +490,7 @@ task.spawn(function()
             for i, d in ipairs(sorted) do
                 local b = Instance.new("TextButton")
                 b.Size, b.LayoutOrder, b.BorderSizePixel = UDim2.new(1, -6, 0, 30), i, 0
-                b.Text = string.format("[%s]%s %s", d.type, (d.isSelf and " [S]" or ""), d.name)
+                b.Text = string.format("[%s]%s %s", d.type, (d.isSelf and " [S]" or ""), d.name:gsub("\194\160", " ")) -- Имя в кнопке обычное
                 b:SetAttribute("GUID", d.guid)
                 b:SetAttribute("IsSelf", d.isSelf)
                 b.BackgroundColor3 = (currentSelectionGUID == d.guid) and Color3.fromRGB(100, 50, 200) or (d.isSelf and Color3.fromRGB(45, 90, 45) or Color3.fromRGB(40, 40, 45))
@@ -515,10 +512,10 @@ local function createBotBtn(text, pos, size, color)
     return b
 end
 
--- НАДЕЖНЫЙ ПАРСИНГ ТЕКСТА (ЗАЩИТА ОТ КРИВЫХ ПЕРЕНОСОВ И СИМВОЛОВ)
+-- КНОПКИ С ЗАЩИТОЙ И ВОЗВРАТОМ НЕРАЗРЫВНЫХ ПРОБЕЛОВ ОБРАТНО
 local CopyArgsBtn = createBotBtn("COPY ARGS", UDim2.new(0, 205, 0.68, 0), UDim2.new(0, 108, 0, 58), Color3.fromRGB(45, 90, 45))
 CopyArgsBtn.MouseButton1Click:Connect(function() 
-    local content = Details.Text
+    local content = Details.Text:gsub("\194\160", " ") 
     local scriptMarker = content:find("Script:")
     local argsStart = content:find("Args:")
     
@@ -537,7 +534,7 @@ end)
 
 local CopyScriptBtn = createBotBtn("COPY SCRIPT", UDim2.new(0, 205, 0.83, 0), nil, Color3.fromRGB(60, 60, 120))
 CopyScriptBtn.MouseButton1Click:Connect(function() 
-    local content = Details.Text
+    local content = Details.Text:gsub("\194\160", " ") 
     local scriptMarker = content:find("Script:")
     if scriptMarker then
         local s = content:sub(scriptMarker + 7):gsub("^%s+", "")
@@ -569,12 +566,12 @@ ClearSelfBtn.MouseButton1Click:Connect(function()
     feedback(ClearSelfBtn, "CLEARED")
 end)
 
--- EXECUTE FIXED: ЖЕЛЕЗОБЕТОННЫЙ ПАРСИНГ БЕЗ ОШИБОК LOADSTRING
+-- EXECUTE FIXED: ЖЕЛЕЗОБЕТОННЫЙ ПАРСИНГ С ОЧИСТКОЙ НЕРАЗРЫВНЫХ ПРОБЕЛОВ
 local ExecBtn = createBotBtn("EXECUTE", UDim2.new(0, 432, 0.83, 0), nil, Color3.fromRGB(120, 60, 60))
 ExecBtn.MouseButton1Click:Connect(function() 
     if not currentSelectionGUID then return end
     
-    local currentContent = Details.Text
+    local currentContent = Details.Text:gsub("\194\160", " ") 
     local scriptMarker = currentContent:find("Script:")
     local argsStart = currentContent:find("Args:")
     local pathStart = currentContent:find("Path:")
@@ -604,7 +601,6 @@ ExecBtn.MouseButton1Click:Connect(function()
     if not original then
         for _, b in pairs(ManualBannedPaths) do
             if b.guid == currentSelectionGUID then 
-                -- Надежное извлечение из забаненных записей
                 local bPathStart = b.details:find("Path:")
                 local bArgsStart = b.details:find("Args:")
                 local bScriptStart = b.details:find("Script:")
@@ -636,12 +632,12 @@ ExecBtn.MouseButton1Click:Connect(function()
             local eArgsStart = original.fullTextPretty:find("Args:")
             local eScriptStart = original.fullTextPretty:find("Script:")
             if eArgsStart and eScriptStart and eArgsStart < eScriptStart then
-                cleanOldArgsPretty = original.fullTextPretty:sub(eArgsStart + 5, eScriptStart - 1):gsub("^%s+", ""):gsub("%s+$", "")
+                cleanOldArgsPretty = original.fullTextPretty:sub(eArgsStart + 5, eScriptStart - 1):gsub("^%s+", ""):gsub("%s+$", ""):gsub("\194\160", " ")
             end
         end
 
         if cleanNewArgs ~= cleanOldArgs and cleanNewArgs ~= cleanOldArgsPretty and cleanNewArgs ~= "" then
-            local p = (newPath ~= "" and newPath) or original.path
+            local p = (newPath ~= "" and newPath) or original.path:gsub("\194\160", " ")
             local method = original.method or "FireServer"
             finalScript = string.format("%s:%s(%s)", p, method, (cleanNewArgs == "None" and "" or cleanNewArgs))
         else
@@ -652,6 +648,7 @@ ExecBtn.MouseButton1Click:Connect(function()
     end
 
     if finalScript and finalScript ~= "" then 
+        finalScript = finalScript:gsub("\194\160", " ") -- Тотальная зачистка перед выполнением
         local f, err = loadstring(finalScript)
         if f then 
             task.spawn(f) 
