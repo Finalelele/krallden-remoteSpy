@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.7.8 FULL SOURCE RESTORED ]] --
+-- [[ KRALLDEN SPY v9.7.9 FULL SOURCE RESTORED ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -27,7 +27,7 @@ ScreenGui.DisplayOrder = 10
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = targetParent
 
--- Anti-Hide (Постоянная проверка видимости)
+-- Anti-Hide
 task.spawn(function()
     while task.wait(1) do 
         if ScreenGui and ScreenGui.Parent and not ScreenGui.Enabled then 
@@ -75,7 +75,7 @@ local Details
 local ContentFrame
 local DetailsScroll
 
--- Функция обратной связи (текст на кнопке)
+-- Вспомогательные функции UI
 local activeFeedbacks = {}
 local function feedback(button, tempText)
     if not button or activeFeedbacks[button] then 
@@ -94,7 +94,6 @@ local function feedback(button, tempText)
     end)
 end
 
--- Авто-размер холста для деталей
 local function updateDetailsCanvas()
     if DetailsScroll and Details then
         task.defer(function()
@@ -103,7 +102,6 @@ local function updateDetailsCanvas()
     end
 end
 
--- Обновление подсветки выбранного лога
 local function refreshSelectionColors()
     if not Scroll or not RedListScroll then 
         return 
@@ -136,7 +134,7 @@ local function refreshSelectionColors()
     end
 end
 
--- Форматирование таблиц (для режима SORT)
+-- Форматирование данных
 local function formatTableVisual(val, indent)
     indent = indent or 0
     local tab = string.rep("    ", indent)
@@ -178,7 +176,6 @@ local function formatTableVisual(val, indent)
     end
 end
 
--- Получение текста деталей с учетом сортировки
 local function getSortedDetails(d)
     local prefix = d.prefix or ""
     if not sortEnabled then 
@@ -198,7 +195,7 @@ local function getSortedDetails(d)
     return prefix .. string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", d.type, d.path, displayArgs, d.path, methodName, d.argsStr)
 end
 
--- Обновление UI бан-листа
+-- Логика Бан-листа (UI)
 local function updateRedListUI()
     if not RedListScroll then 
         return 
@@ -254,7 +251,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(0, 200, 1, 0)
 Title.BackgroundTransparency = 1
 Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.7.8"
+Title.Text = "KRALLDEN SPY v9.7.9"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 16
@@ -401,19 +398,16 @@ end
 
 -- ================= ADD LOG =================
 local function addLog(rem, args, isSelf, typeLabel)
-    -- Фильтрация по типу
     if typeLabel == "FS" and not spyFS then return end
     if typeLabel == "FC" and not spyFC then return end
     if typeLabel == "IS" and not spyIS then return end
     
     local eventPath = getSafePath(rem)
     
-    -- Проверка бан-листа
     if not isSelf and ManualBannedPaths[eventPath] then 
         return 
     end
 
-    -- Парсинг аргументов
     local function parseValue(v, d)
         d = d or 0
         if d > 4 then return "..." end
@@ -469,7 +463,6 @@ local function addLog(rem, args, isSelf, typeLabel)
     
     local finalArgsStr = table.concat(argList, ", ")
     
-    -- Проверка на дубликаты
     local alreadyExists = false
     for _, m in ipairs(MainMemory) do
         if m.path == eventPath and m.isSelf == isSelf then
@@ -491,7 +484,6 @@ local function addLog(rem, args, isSelf, typeLabel)
         return 
     end
 
-    -- Формирование деталей лога
     local methodName = (typeLabel == "IS") and "InvokeServer" or (typeLabel == "FC" and "FireClient" or "FireServer")
     local displayArgs = (finalArgsStr == "") and "None" or finalArgsStr
     
@@ -500,7 +492,7 @@ local function addLog(rem, args, isSelf, typeLabel)
         typeLabel, eventPath, displayArgs, eventPath, methodName, finalArgsStr
     )
 
-    -- Система Anti-Spam
+    -- Anti-Spam Logic
     if not isSelf and not controlMode and antiSpam then
         local currentTime = tick()
         if (currentTime - (AntiSpamCooldowns[eventPath] or 0)) < 0.4 then
@@ -775,7 +767,7 @@ CopyArgsBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-local SortBtn = createBotBtn("SORT: OFF", UDim2.new(0, 305, 0.68, 0), UDim2.new(0, 120, 0, 58), Color3.fromRGB(80, 80, 85)) -- Возвращен серый цвет
+local SortBtn = createBotBtn("SORT: OFF", UDim2.new(0, 305, 0.68, 0), UDim2.new(0, 120, 0, 58), Color3.fromRGB(80, 80, 85))
 SortBtn.MouseButton1Click:Connect(function()
     sortEnabled = not sortEnabled
     if sortEnabled then
@@ -845,7 +837,7 @@ ExecuteBtn.MouseButton1Click:Connect(function()
         local f = loadstring(s)
         if f then 
             task.spawn(f) 
-            feedback(ExecuteBtn, "DONE!")
+            feedback(ExecuteBtn, "EXECUTED!")
         end
     end 
 end)
@@ -873,13 +865,12 @@ AntiSpamBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- ================= ТЕ САМЫЕ ТРИ КНОПКИ (FS, FC, IS) =================
+-- ================= ТРИ КНОПКИ (FS, FC, IS) =================
 local function createTypeBtn(text, pos, state, color, varName)
     local b = Instance.new("TextButton")
     b.Size = UDim2.new(0, 150, 0, 35)
     b.Position = pos
     
-    -- Изначальный цвет на основе состояния
     if state then
         b.BackgroundColor3 = color
     else
@@ -894,7 +885,6 @@ local function createTypeBtn(text, pos, state, color, varName)
     b.Parent = ContentFrame
     
     b.MouseButton1Click:Connect(function()
-        -- Прямое переключение переменных
         if varName == "FS" then 
             spyFS = not spyFS 
         elseif varName == "FC" then 
@@ -903,13 +893,11 @@ local function createTypeBtn(text, pos, state, color, varName)
             spyIS = not spyIS 
         end
 
-        -- Определение нового состояния для UI
         local currentState = false
         if varName == "FS" then currentState = spyFS
         elseif varName == "FC" then currentState = spyFC
         elseif varName == "IS" then currentState = spyIS end
 
-        -- Визуальное обновление
         b.Text = varName .. " SPY: " .. (currentState and "ON" or "OFF")
         if currentState then
             b.BackgroundColor3 = color
