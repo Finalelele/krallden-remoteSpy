@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.8.2 FULL SOURCE RESTORED ]] --
+-- [[ KRALLDEN SPY v9.8.3 FULL SOURCE RESTORED ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -197,48 +197,52 @@ end
 
 -- Логика Бан-листа (UI)
 local function updateRedListUI()
-    -- Использование task.defer гарантирует, что код выполнится в контексте UI потока
     task.defer(function()
-        if not RedListScroll or not RedListScroll.Parent then 
-            return 
-        end
-        
-        for _, v in ipairs(RedListScroll:GetChildren()) do 
-            if v:IsA("TextButton") then 
-                pcall(function() v:Destroy() end)
-            end 
-        end
-        
-        for path, data in pairs(ManualBannedPaths) do
-            local b = Instance.new("TextButton")
-            b.Size = UDim2.new(1, -6, 0, 25)
-            
-            if currentSelectionGUID == data.guid then
-                b.BackgroundColor3 = Color3.fromRGB(100, 50, 200)
-            else
-                b.BackgroundColor3 = Color3.fromRGB(100, 35, 35)
+        pcall(function()
+            if not RedListScroll or not RedListScroll.Parent then 
+                return 
             end
             
-            b.TextColor3 = Color3.new(1, 1, 1)
-            b.Font = Enum.Font.SourceSansBold
-            b.TextSize = 10
-            b.BorderSizePixel = 0
-            b.ClipsDescendants = true
+            -- Безопасная очистка через GetChildren
+            local children = RedListScroll:GetChildren()
+            for i = 1, #children do
+                local v = children[i]
+                if v:IsA("TextButton") then 
+                    v:Destroy()
+                end 
+            end
             
-            local displayPath = path:match("[^%.%[%]]+$") or path
-            b.Text = " [X] " .. displayPath
-            b.Parent = RedListScroll
-            
-            b:SetAttribute("GUID", data.guid)
-            b:SetAttribute("Path", path)
-            
-            b.MouseButton1Click:Connect(function() 
-                currentSelectionGUID = data.guid
-                Details.Text = getSortedDetails(data) 
-                updateDetailsCanvas()
-                refreshSelectionColors()
-            end)
-        end
+            for path, data in pairs(ManualBannedPaths) do
+                local b = Instance.new("TextButton")
+                b.Size = UDim2.new(1, -6, 0, 25)
+                
+                if currentSelectionGUID == data.guid then
+                    b.BackgroundColor3 = Color3.fromRGB(100, 50, 200)
+                else
+                    b.BackgroundColor3 = Color3.fromRGB(100, 35, 35)
+                end
+                
+                b.TextColor3 = Color3.new(1, 1, 1)
+                b.Font = Enum.Font.SourceSansBold
+                b.TextSize = 10
+                b.BorderSizePixel = 0
+                b.ClipsDescendants = true
+                
+                local displayPath = path:match("[^%.%[%]]+$") or path
+                b.Text = " [X] " .. displayPath
+                b.Parent = RedListScroll
+                
+                b:SetAttribute("GUID", data.guid)
+                b:SetAttribute("Path", path)
+                
+                b.MouseButton1Click:Connect(function() 
+                    currentSelectionGUID = data.guid
+                    Details.Text = getSortedDetails(data) 
+                    updateDetailsCanvas()
+                    refreshSelectionColors()
+                end)
+            end
+        end)
     end)
 end
 
@@ -254,7 +258,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(0, 200, 1, 0)
 Title.BackgroundTransparency = 1
 Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.8.2"
+Title.Text = "KRALLDEN SPY v9.8.3"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 16
@@ -401,6 +405,7 @@ end
 
 -- ================= ADD LOG =================
 local function addLog(rem, args, isSelf, typeLabel)
+    if not rem then return end
     if typeLabel == "FS" and not spyFS then return end
     if typeLabel == "FC" and not spyFC then return end
     if typeLabel == "IS" and not spyIS then return end
@@ -521,7 +526,7 @@ local function addLog(rem, args, isSelf, typeLabel)
                 MainMemory = nM
                 lastCount = -1
                 currentSelectionGUID = nil
-                task.defer(updateRedListUI) -- Исправлено: defer для предотвращения capability error
+                updateRedListUI()
                 return 
             end
         else 
@@ -707,9 +712,11 @@ task.spawn(function()
         if #MainMemory == lastCount then continue end
         
         lastCount = #MainMemory
-        for _, v in pairs(Scroll:GetChildren()) do 
-            if v:IsA("TextButton") then v:Destroy() end 
-        end
+        pcall(function()
+            for _, v in pairs(Scroll:GetChildren()) do 
+                if v:IsA("TextButton") then v:Destroy() end 
+            end
+        end)
         
         local sortedMemory = {}
         for _, d in ipairs(MainMemory) do 
