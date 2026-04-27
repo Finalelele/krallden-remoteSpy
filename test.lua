@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.8.0 FULL SOURCE RESTORED ]] --
+-- [[ KRALLDEN SPY v9.8.1 FULL SOURCE RESTORED ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -197,46 +197,49 @@ end
 
 -- Логика Бан-листа (UI)
 local function updateRedListUI()
-    if not RedListScroll then 
-        return 
-    end
-    
-    for _, v in pairs(RedListScroll:GetChildren()) do 
-        if v:IsA("TextButton") then 
-            v:Destroy() 
-        end 
-    end
-    
-    for path, data in pairs(ManualBannedPaths) do
-        local b = Instance.new("TextButton")
-        b.Size = UDim2.new(1, -6, 0, 25)
-        
-        if currentSelectionGUID == data.guid then
-            b.BackgroundColor3 = Color3.fromRGB(100, 50, 200)
-        else
-            b.BackgroundColor3 = Color3.fromRGB(100, 35, 35)
+    -- Используем task.defer для предотвращения ошибки capability plugin
+    task.defer(function()
+        if not RedListScroll then 
+            return 
         end
         
-        b.TextColor3 = Color3.new(1, 1, 1)
-        b.Font = Enum.Font.SourceSansBold
-        b.TextSize = 10
-        b.BorderSizePixel = 0
-        b.ClipsDescendants = true
+        for _, v in pairs(RedListScroll:GetChildren()) do 
+            if v:IsA("TextButton") then 
+                v:Destroy() 
+            end 
+        end
         
-        local displayPath = path:match("[^%.%[%]]+$") or path
-        b.Text = " [X] " .. displayPath
-        b.Parent = RedListScroll
-        
-        b:SetAttribute("GUID", data.guid)
-        b:SetAttribute("Path", path)
-        
-        b.MouseButton1Click:Connect(function() 
-            currentSelectionGUID = data.guid
-            Details.Text = getSortedDetails(data) 
-            updateDetailsCanvas()
-            refreshSelectionColors()
-        end)
-    end
+        for path, data in pairs(ManualBannedPaths) do
+            local b = Instance.new("TextButton")
+            b.Size = UDim2.new(1, -6, 0, 25)
+            
+            if currentSelectionGUID == data.guid then
+                b.BackgroundColor3 = Color3.fromRGB(100, 50, 200)
+            else
+                b.BackgroundColor3 = Color3.fromRGB(100, 35, 35)
+            end
+            
+            b.TextColor3 = Color3.new(1, 1, 1)
+            b.Font = Enum.Font.SourceSansBold
+            b.TextSize = 10
+            b.BorderSizePixel = 0
+            b.ClipsDescendants = true
+            
+            local displayPath = path:match("[^%.%[%]]+$") or path
+            b.Text = " [X] " .. displayPath
+            b.Parent = RedListScroll
+            
+            b:SetAttribute("GUID", data.guid)
+            b:SetAttribute("Path", path)
+            
+            b.MouseButton1Click:Connect(function() 
+                currentSelectionGUID = data.guid
+                Details.Text = getSortedDetails(data) 
+                updateDetailsCanvas()
+                refreshSelectionColors()
+            end)
+        end
+    end)
 end
 
 -- ================= HEADER =================
@@ -251,7 +254,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(0, 200, 1, 0)
 Title.BackgroundTransparency = 1
 Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.8.0"
+Title.Text = "KRALLDEN SPY v9.8.1"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 16
@@ -458,7 +461,6 @@ local function addLog(rem, args, isSelf, typeLabel)
 
     local argList = {}
     for _, v in ipairs(args) do 
-        -- Кастомная вставка вместо table.insert
         argList[#argList + 1] = parseValue(v)
     end
     
@@ -540,16 +542,12 @@ local function addLog(rem, args, isSelf, typeLabel)
         rawArgs = args 
     }
     
-    -- Кастомный сдвиг таблицы вместо table.insert(t, 1, val)
-    -- Мы идем с конца в начало и сдвигаем каждый элемент на 1 позицию вправо
     local memSize = #MainMemory
     for idx = memSize, 1, -1 do
         MainMemory[idx + 1] = MainMemory[idx]
     end
-    -- Вставляем новый лог в самое начало (чтобы в UI он был сверху)
     MainMemory[1] = newLog
     
-    -- Удаление старых записей если лимит превышен (150 логов)
     if #MainMemory > 150 then 
         MainMemory[#MainMemory] = nil 
     end
