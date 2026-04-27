@@ -195,55 +195,37 @@ local function getSortedDetails(d)
     return prefix .. string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", d.type, d.path, displayArgs, d.path, methodName, d.argsStr)
 end
 
--- Логика Бан-листа (UI)
+-- Логика Бан-листа (UI) - ФИКС (Версия 9.7.6 Style)
 local function updateRedListUI()
-    task.defer(function()
-        pcall(function()
-            if not RedListScroll or not RedListScroll.Parent then 
-                return 
-            end
-            
-            -- Безопасная очистка через GetChildren
-            local children = RedListScroll:GetChildren()
-            for i = 1, #children do
-                local v = children[i]
-                if v:IsA("TextButton") then 
-                    v:Destroy()
-                end 
-            end
-            
-            for path, data in pairs(ManualBannedPaths) do
-                local b = Instance.new("TextButton")
-                b.Size = UDim2.new(1, -6, 0, 25)
-                
-                if currentSelectionGUID == data.guid then
-                    b.BackgroundColor3 = Color3.fromRGB(100, 50, 200)
-                else
-                    b.BackgroundColor3 = Color3.fromRGB(100, 35, 35)
-                end
-                
-                b.TextColor3 = Color3.new(1, 1, 1)
-                b.Font = Enum.Font.SourceSansBold
-                b.TextSize = 10
-                b.BorderSizePixel = 0
-                b.ClipsDescendants = true
-                
-                local displayPath = path:match("[^%.%[%]]+$") or path
-                b.Text = " [X] " .. displayPath
-                b.Parent = RedListScroll
-                
-                b:SetAttribute("GUID", data.guid)
-                b:SetAttribute("Path", path)
-                
-                b.MouseButton1Click:Connect(function() 
-                    currentSelectionGUID = data.guid
-                    Details.Text = getSortedDetails(data) 
-                    updateDetailsCanvas()
-                    refreshSelectionColors()
-                end)
-            end
+    if not RedListScroll then return end
+    for _, v in pairs(RedListScroll:GetChildren()) do 
+        if v:IsA("TextButton") then v:Destroy() end 
+    end
+    
+    for path, data in pairs(ManualBannedPaths) do
+        local b = Instance.new("TextButton")
+        b.Size = UDim2.new(1, -6, 0, 25)
+        b.BackgroundColor3 = (currentSelectionGUID == data.guid) and Color3.fromRGB(100, 50, 200) or Color3.fromRGB(100, 35, 35)
+        b.TextColor3 = Color3.new(1, 1, 1)
+        b.Font = Enum.Font.SourceSansBold
+        b.TextSize = 10
+        b.BorderSizePixel = 0
+        b.ClipsDescendants = true
+        
+        local displayPath = path:match("[^%.%[%]]+$") or path
+        b.Text = " [X] " .. displayPath
+        b.Parent = RedListScroll
+        
+        b:SetAttribute("GUID", data.guid)
+        b:SetAttribute("Path", path)
+        
+        b.MouseButton1Click:Connect(function() 
+            currentSelectionGUID = data.guid
+            Details.Text = getSortedDetails(data) -- Сохранена структура SORT
+            updateDetailsCanvas()
+            refreshSelectionColors()
         end)
-    end)
+    end
 end
 
 -- ================= HEADER =================
@@ -403,54 +385,35 @@ local function getSafePath(obj)
     return finalPath:gsub("%.%[", "[") 
 end
 
--- ================= ADD LOG =================
+-- ================= ADD LOG - ФИКС (Версия 9.7.6 Style) =================
 local function addLog(rem, args, isSelf, typeLabel)
-    if not rem then return end
     if typeLabel == "FS" and not spyFS then return end
     if typeLabel == "FC" and not spyFC then return end
     if typeLabel == "IS" and not spyIS then return end
     
     local eventPath = getSafePath(rem)
-    
-    if not isSelf and ManualBannedPaths[eventPath] then 
-        return 
-    end
+    if not isSelf and ManualBannedPaths[eventPath] then return end
 
     local function parseValue(v, d)
         d = d or 0
         if d > 4 then return "..." end
-        
         local t = type(v)
-        if t == "string" then 
-            return '"' .. v .. '"'
+        if t == "string" then return '"' .. v .. '"'
         elseif t == "table" then
             local isArray = true
             local count = 0
-            for k, val in pairs(v) do 
-                count = count + 1
-                if type(k) ~= "number" or k ~= count then 
-                    isArray = false 
-                    break 
-                end 
-            end
-            
+            for k, val in pairs(v) do count = count + 1 if type(k) ~= "number" or k ~= count then isArray = false break end end
             local res = "{"
             local i = 0
             for k, val in pairs(v) do 
                 i = i + 1
-                if i > 15 then 
-                    res = res .. "... " 
-                    break 
-                end
-                
-                if isArray then 
-                    res = res .. parseValue(val, d + 1) .. ", " 
+                if i > 15 then res = res .. "... " break end
+                if isArray then res = res .. parseValue(val, d + 1) .. ", " 
                 else 
                     local key = (type(k) == "number") and "["..k.."]" or '["'..tostring(k)..'"]'
                     res = res .. key .. " = " .. parseValue(val, d + 1) .. ", " 
                 end
             end
-            
             local result = res:gsub(", $", "") .. "}"
             return (result == "}") and "{}" or result
         elseif t == "userdata" then
@@ -459,103 +422,55 @@ local function addLog(rem, args, isSelf, typeLabel)
             elseif tn == "Vector3" then return "Vector3.new(" .. tostring(v) .. ")"
             elseif tn == "Instance" then return getSafePath(v) end
             return tostring(v)
-        else 
-            return tostring(v) 
-        end
+        else return tostring(v) end
     end
 
     local argList = {}
-    for _, v in ipairs(args) do 
-        argList[#argList + 1] = parseValue(v)
-    end
-    
+    for _, v in ipairs(args) do argList[#argList + 1] = parseValue(v) end
     local finalArgsStr = table.concat(argList, ", ")
     
     local alreadyExists = false
     for _, m in ipairs(MainMemory) do
         if m.path == eventPath and m.isSelf == isSelf then
-            if isSelf then 
-                if selfMode or m.argsStr == finalArgsStr then 
-                    alreadyExists = true
-                    break 
-                end
-            else 
-                if controlMode or m.argsStr == finalArgsStr then 
-                    alreadyExists = true
-                    break 
-                end 
-            end
+            if isSelf then if selfMode or m.argsStr == finalArgsStr then alreadyExists = true break end
+            else if controlMode or m.argsStr == finalArgsStr then alreadyExists = true break end end
         end
     end
-    
-    if alreadyExists then 
-        return 
-    end
+    if alreadyExists then return end
 
     local methodName = (typeLabel == "IS") and "InvokeServer" or (typeLabel == "FC" and "FireClient" or "FireServer")
     local displayArgs = (finalArgsStr == "") and "None" or finalArgsStr
-    
-    local logDetails = string.format(
-        "Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", 
-        typeLabel, eventPath, displayArgs, eventPath, methodName, finalArgsStr
-    )
+    local logDetails = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, displayArgs, eventPath, methodName, finalArgsStr)
 
-    -- Anti-Spam Logic
+    -- Anti-Spam (9.7.6 Structure)
     if not isSelf and not controlMode and antiSpam then
         local currentTime = tick()
         if (currentTime - (AntiSpamCooldowns[eventPath] or 0)) < 0.4 then
             AntiSpamCounts[eventPath] = (AntiSpamCounts[eventPath] or 0) + 1
             if AntiSpamCounts[eventPath] >= 4 then
                 ManualBannedPaths[eventPath] = {
-                    guid = generateGUID(), 
-                    prefix = "AUTO-BANNED\n\n", 
-                    fullText = logDetails, 
-                    rawArgs = args, 
-                    type = typeLabel, 
-                    path = eventPath, 
-                    argsStr = finalArgsStr
+                    guid = generateGUID(), prefix = "AUTO-BANNED\n\n", fullText = logDetails,
+                    rawArgs = args, type = typeLabel, path = eventPath, argsStr = finalArgsStr
                 }
-                
                 local nM = {}
-                for _, m in ipairs(MainMemory) do 
-                    if not (m.path == eventPath and not m.isSelf) then 
-                        nM[#nM + 1] = m 
-                    end 
-                end
-                
+                for _, m in ipairs(MainMemory) do if not (m.path == eventPath and not m.isSelf) then nM[#nM + 1] = m end end
                 MainMemory = nM
                 lastCount = -1
                 currentSelectionGUID = nil
                 updateRedListUI()
                 return 
             end
-        else 
-            AntiSpamCounts[eventPath] = 0 
-        end
+        else AntiSpamCounts[eventPath] = 0 end
         AntiSpamCooldowns[eventPath] = currentTime
     end
 
-    -- Добавление в память (New Log)
+    -- Добавление в память ( Стабильная вставка )
     local newLog = { 
-        guid = generateGUID(), 
-        name = tostring(rem.Name), 
-        type = typeLabel, 
-        isSelf = isSelf, 
-        fullText = logDetails, 
-        path = eventPath, 
-        argsStr = finalArgsStr, 
-        rawArgs = args 
+        guid = generateGUID(), name = tostring(rem.Name), type = typeLabel, isSelf = isSelf, 
+        fullText = logDetails, path = eventPath, argsStr = finalArgsStr, rawArgs = args 
     }
-    
-    local memSize = #MainMemory
-    for idx = memSize, 1, -1 do
-        MainMemory[idx + 1] = MainMemory[idx]
-    end
-    MainMemory[1] = newLog
-    
-    if #MainMemory > 150 then 
-        MainMemory[#MainMemory] = nil 
-    end
+    table.insert(MainMemory, 1, newLog)
+    if #MainMemory > 150 then table.remove(MainMemory, 151) end
 end
 
 -- ================= ПЕРЕХВАТ (HOOKS) =================
@@ -712,23 +627,13 @@ task.spawn(function()
         if #MainMemory == lastCount then continue end
         
         lastCount = #MainMemory
-        pcall(function()
-            for _, v in pairs(Scroll:GetChildren()) do 
-                if v:IsA("TextButton") then v:Destroy() end 
-            end
-        end)
+        for _, v in pairs(Scroll:GetChildren()) do 
+            if v:IsA("TextButton") then v:Destroy() end 
+        end
         
         local sortedMemory = {}
-        for _, d in ipairs(MainMemory) do 
-            if d.isSelf then 
-                sortedMemory[#sortedMemory + 1] = d 
-            end 
-        end
-        for _, d in ipairs(MainMemory) do 
-            if not d.isSelf then 
-                sortedMemory[#sortedMemory + 1] = d 
-            end 
-        end
+        for _, d in ipairs(MainMemory) do if d.isSelf then sortedMemory[#sortedMemory + 1] = d end end
+        for _, d in ipairs(MainMemory) do if not d.isSelf then sortedMemory[#sortedMemory + 1] = d end end
         
         for i, d in ipairs(sortedMemory) do
             local b = Instance.new("TextButton")
@@ -834,11 +739,7 @@ end)
 local ClearLogBtn = createBotBtn("CLEAR LOG", UDim2.new(0, 432, 0.68, 0), UDim2.new(0, 108, 0, 58), Color3.fromRGB(80, 80, 85))
 ClearLogBtn.MouseButton1Click:Connect(function()
     local nM = {}
-    for _, m in ipairs(MainMemory) do 
-        if m.isSelf then 
-            nM[#nM + 1] = m 
-        end 
-    end
+    for _, m in ipairs(MainMemory) do if m.isSelf then nM[#nM + 1] = m end end
     MainMemory = nM
     lastCount = -1
     feedback(ClearLogBtn, "CLEARED")
@@ -847,11 +748,7 @@ end)
 local ClearSelfBtn = createBotBtn("CLEAR SELF", UDim2.new(0, 544, 0.68, 0), UDim2.new(0, 108, 0, 58), Color3.fromRGB(100, 80, 60))
 ClearSelfBtn.MouseButton1Click:Connect(function()
     local nM = {}
-    for _, m in ipairs(MainMemory) do 
-        if not m.isSelf then 
-            nM[#nM + 1] = m 
-        end 
-    end
+    for _, m in ipairs(MainMemory) do if not m.isSelf then nM[#nM + 1] = m end end
     MainMemory = nM
     lastCount = -1
     feedback(ClearSelfBtn, "CLEARED")
@@ -897,13 +794,7 @@ local function createTypeBtn(text, pos, state, color, varName)
     local b = Instance.new("TextButton")
     b.Size = UDim2.new(0, 150, 0, 35)
     b.Position = pos
-    
-    if state then
-        b.BackgroundColor3 = color
-    else
-        b.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-    end
-    
+    b.BackgroundColor3 = state and color or Color3.fromRGB(40, 40, 45)
     b.Text = text
     b.TextColor3 = Color3.new(1, 1, 1)
     b.Font = Enum.Font.SourceSansBold
@@ -912,25 +803,13 @@ local function createTypeBtn(text, pos, state, color, varName)
     b.Parent = ContentFrame
     
     b.MouseButton1Click:Connect(function()
-        if varName == "FS" then 
-            spyFS = not spyFS 
-        elseif varName == "FC" then 
-            spyFC = not spyFC 
-        elseif varName == "IS" then 
-            spyIS = not spyIS 
-        end
+        if varName == "FS" then spyFS = not spyFS 
+        elseif varName == "FC" then spyFC = not spyFC 
+        elseif varName == "IS" then spyIS = not spyIS end
 
-        local currentState = false
-        if varName == "FS" then currentState = spyFS
-        elseif varName == "FC" then currentState = spyFC
-        elseif varName == "IS" then currentState = spyIS end
-
+        local currentState = (varName == "FS" and spyFS) or (varName == "FC" and spyFC) or (varName == "IS" and spyIS)
         b.Text = varName .. " SPY: " .. (currentState and "ON" or "OFF")
-        if currentState then
-            b.BackgroundColor3 = color
-        else
-            b.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-        end
+        b.BackgroundColor3 = currentState and color or Color3.fromRGB(40, 40, 45)
     end)
 end
 
