@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.7.9 FULL SOURCE RESTORED ]] --
+-- [[ KRALLDEN SPY v9.8.5 FULL SOURCE RESTORED & ACCESS FIXED ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -63,6 +63,7 @@ local spyIS = false
 local sortEnabled = false
 local currentSelectionGUID = nil
 local lastCount = 0
+local lastRedCount = 0 -- Для отслеживания изменений в Бан-листе
 local isMin = false
 
 local function generateGUID() 
@@ -197,26 +198,15 @@ end
 
 -- Логика Бан-листа (UI)
 local function updateRedListUI()
-    if not RedListScroll then 
-        return 
-    end
-    
+    if not RedListScroll then return end
     for _, v in pairs(RedListScroll:GetChildren()) do 
-        if v:IsA("TextButton") then 
-            v:Destroy() 
-        end 
+        if v:IsA("TextButton") then v:Destroy() end 
     end
     
     for path, data in pairs(ManualBannedPaths) do
         local b = Instance.new("TextButton")
         b.Size = UDim2.new(1, -6, 0, 25)
-        
-        if currentSelectionGUID == data.guid then
-            b.BackgroundColor3 = Color3.fromRGB(100, 50, 200)
-        else
-            b.BackgroundColor3 = Color3.fromRGB(100, 35, 35)
-        end
-        
+        b.BackgroundColor3 = (currentSelectionGUID == data.guid) and Color3.fromRGB(100, 50, 200) or Color3.fromRGB(100, 35, 35)
         b.TextColor3 = Color3.new(1, 1, 1)
         b.Font = Enum.Font.SourceSansBold
         b.TextSize = 10
@@ -224,6 +214,7 @@ local function updateRedListUI()
         b.ClipsDescendants = true
         
         local displayPath = path:match("[^%.%[%]]+$") or path
+        displayPath = displayPath:gsub('^"', ''):gsub('"$', ''):gsub('%]$', '')
         b.Text = " [X] " .. displayPath
         b.Parent = RedListScroll
         
@@ -232,7 +223,7 @@ local function updateRedListUI()
         
         b.MouseButton1Click:Connect(function() 
             currentSelectionGUID = data.guid
-            Details.Text = getSortedDetails(data) 
+            Details.Text = getSortedDetails(data)
             updateDetailsCanvas()
             refreshSelectionColors()
         end)
@@ -251,7 +242,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(0, 200, 1, 0)
 Title.BackgroundTransparency = 1
 Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.7.9"
+Title.Text = "KRALLDEN SPY v9.8.5"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 16
@@ -403,46 +394,28 @@ local function addLog(rem, args, isSelf, typeLabel)
     if typeLabel == "IS" and not spyIS then return end
     
     local eventPath = getSafePath(rem)
-    
-    if not isSelf and ManualBannedPaths[eventPath] then 
-        return 
-    end
+    if not isSelf and ManualBannedPaths[eventPath] then return end
 
     local function parseValue(v, d)
         d = d or 0
         if d > 4 then return "..." end
-        
         local t = type(v)
-        if t == "string" then 
-            return '"' .. v .. '"'
+        if t == "string" then return '"' .. v .. '"'
         elseif t == "table" then
             local isArray = true
             local count = 0
-            for k, val in pairs(v) do 
-                count = count + 1
-                if type(k) ~= "number" or k ~= count then 
-                    isArray = false 
-                    break 
-                end 
-            end
-            
+            for k, val in pairs(v) do count = count + 1 if type(k) ~= "number" or k ~= count then isArray = false break end end
             local res = "{"
             local i = 0
             for k, val in pairs(v) do 
                 i = i + 1
-                if i > 15 then 
-                    res = res .. "... " 
-                    break 
-                end
-                
-                if isArray then 
-                    res = res .. parseValue(val, d + 1) .. ", " 
+                if i > 15 then res = res .. "... " break end
+                if isArray then res = res .. parseValue(val, d + 1) .. ", " 
                 else 
                     local key = (type(k) == "number") and "["..k.."]" or '["'..tostring(k)..'"]'
                     res = res .. key .. " = " .. parseValue(val, d + 1) .. ", " 
                 end
             end
-            
             local result = res:gsub(", $", "") .. "}"
             return (result == "}") and "{}" or result
         elseif t == "userdata" then
@@ -451,106 +424,53 @@ local function addLog(rem, args, isSelf, typeLabel)
             elseif tn == "Vector3" then return "Vector3.new(" .. tostring(v) .. ")"
             elseif tn == "Instance" then return getSafePath(v) end
             return tostring(v)
-        else 
-            return tostring(v) 
-        end
+        else return tostring(v) end
     end
 
     local argList = {}
-    for i, v in ipairs(args) do 
-        -- Замена table.insert на индексы
-        argList[#argList + 1] = parseValue(v)
-    end
-    
+    for _, v in ipairs(args) do argList[#argList + 1] = parseValue(v) end
     local finalArgsStr = table.concat(argList, ", ")
     
     local alreadyExists = false
-    for _, m in ipairs(MainMemory) do
+    for _, m in pairs(MainMemory) do
         if m.path == eventPath and m.isSelf == isSelf then
-            if isSelf then 
-                if selfMode or m.argsStr == finalArgsStr then 
-                    alreadyExists = true
-                    break 
-                end
-            else 
-                if controlMode or m.argsStr == finalArgsStr then 
-                    alreadyExists = true
-                    break 
-                end 
-            end
+            if isSelf then if selfMode or m.argsStr == finalArgsStr then alreadyExists = true break end
+            else if controlMode or m.argsStr == finalArgsStr then alreadyExists = true break end end
         end
     end
-    
-    if alreadyExists then 
-        return 
-    end
+    if alreadyExists then return end
 
     local methodName = (typeLabel == "IS") and "InvokeServer" or (typeLabel == "FC" and "FireClient" or "FireServer")
     local displayArgs = (finalArgsStr == "") and "None" or finalArgsStr
-    
-    local logDetails = string.format(
-        "Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", 
-        typeLabel, eventPath, displayArgs, eventPath, methodName, finalArgsStr
-    )
+    local logDetails = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, displayArgs, eventPath, methodName, finalArgsStr)
 
-    -- Anti-Spam Logic
+    -- Anti-Spam
     if not isSelf and not controlMode and antiSpam then
         local currentTime = tick()
         if (currentTime - (AntiSpamCooldowns[eventPath] or 0)) < 0.4 then
             AntiSpamCounts[eventPath] = (AntiSpamCounts[eventPath] or 0) + 1
             if AntiSpamCounts[eventPath] >= 4 then
                 ManualBannedPaths[eventPath] = {
-                    guid = generateGUID(), 
-                    prefix = "AUTO-BANNED\n\n", 
-                    fullText = logDetails, 
-                    rawArgs = args, 
-                    type = typeLabel, 
-                    path = eventPath, 
-                    argsStr = finalArgsStr
+                    guid = generateGUID(), prefix = "AUTO-BANNED\n\n", fullText = logDetails,
+                    rawArgs = args, type = typeLabel, path = eventPath, argsStr = finalArgsStr
                 }
-                
                 local nM = {}
-                for _, m in ipairs(MainMemory) do 
-                    if not (m.path == eventPath and not m.isSelf) then 
-                        -- Замена table.insert на индексы
-                        nM[#nM + 1] = m 
-                    end 
-                end
-                
+                for _, m in ipairs(MainMemory) do if not (m.path == eventPath and not m.isSelf) then nM[#nM + 1] = m end end
                 MainMemory = nM
-                lastCount = -1
-                currentSelectionGUID = nil
-                updateRedListUI()
+                lastCount = -1 
                 return 
             end
-        else 
-            AntiSpamCounts[eventPath] = 0 
-        end
+        else AntiSpamCounts[eventPath] = 0 end
         AntiSpamCooldowns[eventPath] = currentTime
     end
 
     -- Добавление в память
     local newLog = { 
-        guid = generateGUID(), 
-        name = tostring(rem.Name), 
-        type = typeLabel, 
-        isSelf = isSelf, 
-        fullText = logDetails, 
-        path = eventPath, 
-        argsStr = finalArgsStr, 
-        rawArgs = args 
+        guid = generateGUID(), name = tostring(rem.Name), type = typeLabel, isSelf = isSelf, 
+        fullText = logDetails, path = eventPath, argsStr = finalArgsStr, rawArgs = args 
     }
-    
-    -- Кастомная вставка в начало таблицы без table.insert
-    for idx = #MainMemory, 1, -1 do
-        MainMemory[idx + 1] = MainMemory[idx]
-    end
-    MainMemory[1] = newLog
-    
-    -- Замена table.remove(MainMemory, #MainMemory)
-    if #MainMemory > 150 then 
-        MainMemory[#MainMemory] = nil 
-    end
+    table.insert(MainMemory, 1, newLog)
+    if #MainMemory > 150 then table.remove(MainMemory, 151) end
 end
 
 -- ================= ПЕРЕХВАТ (HOOKS) =================
@@ -612,7 +532,6 @@ DelBtn.MouseButton1Click:Connect(function()
                 if m.guid == currentSelectionGUID then 
                     targetData = m 
                 else 
-                    -- Замена table.insert на индексы
                     nM[#nM + 1] = m 
                 end 
             end
@@ -622,7 +541,6 @@ DelBtn.MouseButton1Click:Connect(function()
         if targetData then
             if foundInBanList then 
                 ManualBannedPaths[targetData.path] = nil
-                updateRedListUI()
                 feedback(DelBtn, "UNBANNED") 
             else 
                 feedback(DelBtn, "DELETED") 
@@ -653,7 +571,6 @@ BlockBtn.MouseButton1Click:Connect(function()
                 local nM = {}
                 for _, m in ipairs(MainMemory) do 
                     if not (m.path == d.path and not m.isSelf) then 
-                        -- Замена table.insert на индексы
                         nM[#nM + 1] = m 
                     end 
                 end
@@ -661,7 +578,6 @@ BlockBtn.MouseButton1Click:Connect(function()
                 MainMemory = nM
                 lastCount = -1
                 currentSelectionGUID = nil
-                updateRedListUI()
                 Details.Text = "Banned."
                 updateDetailsCanvas()
                 feedback(BlockBtn, "BANNED")
@@ -706,33 +622,37 @@ end)
 task.spawn(function()
     while task.wait(0.5) do
         if not ContentFrame or not ContentFrame.Visible then continue end
-        if #MainMemory == lastCount then continue end
         
+        -- Проверка Бан-листа
+        local currentRedCount = 0
+        for _ in pairs(ManualBannedPaths) do currentRedCount = currentRedCount + 1 end
+        if currentRedCount ~= lastRedCount then
+            lastRedCount = currentRedCount
+            updateRedListUI()
+        end
+
+        -- Проверка основного лога
+        if #MainMemory == lastCount then continue end
         lastCount = #MainMemory
+        
         for _, v in pairs(Scroll:GetChildren()) do 
             if v:IsA("TextButton") then v:Destroy() end 
         end
         
         local sortedMemory = {}
-        for _, d in ipairs(MainMemory) do 
-            if d.isSelf then 
-                -- Замена table.insert на индексы
-                sortedMemory[#sortedMemory + 1] = d 
-            end 
-        end
-        for _, d in ipairs(MainMemory) do 
-            if not d.isSelf then 
-                -- Замена table.insert на индексы
-                sortedMemory[#sortedMemory + 1] = d 
-            end 
-        end
+        for _, d in ipairs(MainMemory) do if d.isSelf then sortedMemory[#sortedMemory + 1] = d end end
+        for _, d in ipairs(MainMemory) do if not d.isSelf then sortedMemory[#sortedMemory + 1] = d end end
         
         for i, d in ipairs(sortedMemory) do
             local b = Instance.new("TextButton")
             b.Size = UDim2.new(1, -6, 0, 30)
             b.LayoutOrder = i
             
-            local display = string.format("[%s]%s %s", d.type, (d.isSelf and " [S]" or ""), d.name)
+            -- ФИКС: Очистка пути, чтобы в списке было только имя
+            local displayName = d.name:match("[^%.%[%]]+$") or d.name
+            displayName = displayName:gsub('^"', ''):gsub('"$', ''):gsub('%]$', '')
+            
+            local display = string.format("[%s]%s %s", d.type, (d.isSelf and " [S]" or ""), displayName)
             b.Text = display
             
             if currentSelectionGUID == d.guid then
@@ -790,32 +710,19 @@ end)
 local SortBtn = createBotBtn("SORT: OFF", UDim2.new(0, 305, 0.68, 0), UDim2.new(0, 120, 0, 58), Color3.fromRGB(80, 80, 85))
 SortBtn.MouseButton1Click:Connect(function()
     sortEnabled = not sortEnabled
-    if sortEnabled then
-        SortBtn.Text = "SORT: ON"
-        SortBtn.BackgroundColor3 = Color3.fromRGB(0, 140, 140)
-    else
-        SortBtn.Text = "SORT: OFF"
-        SortBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 85)
-    end
+    SortBtn.Text = "SORT: " .. (sortEnabled and "ON" or "OFF")
+    SortBtn.BackgroundColor3 = sortEnabled and Color3.fromRGB(0, 140, 140) or Color3.fromRGB(80, 80, 85)
     
     if currentSelectionGUID then
-        local found = false
-        for _, m in ipairs(MainMemory) do
-            if m.guid == currentSelectionGUID then
-                Details.Text = getSortedDetails(m)
-                found = true
-                break
-            end
+        local foundData = nil
+        for _, m in pairs(MainMemory) do if m.guid == currentSelectionGUID then foundData = m break end end
+        if not foundData then
+            for _, d in pairs(ManualBannedPaths) do if d.guid == currentSelectionGUID then foundData = d break end end
         end
-        if not found then
-            for _, d in pairs(ManualBannedPaths) do
-                if d.guid == currentSelectionGUID then
-                    Details.Text = getSortedDetails(d)
-                    break
-                end
-            end
+        if foundData then
+            Details.Text = getSortedDetails(foundData)
+            updateDetailsCanvas()
         end
-        updateDetailsCanvas()
     end
 end)
 
@@ -831,12 +738,7 @@ end)
 local ClearLogBtn = createBotBtn("CLEAR LOG", UDim2.new(0, 432, 0.68, 0), UDim2.new(0, 108, 0, 58), Color3.fromRGB(80, 80, 85))
 ClearLogBtn.MouseButton1Click:Connect(function()
     local nM = {}
-    for _, m in ipairs(MainMemory) do 
-        if m.isSelf then 
-            -- Замена table.insert на индексы
-            nM[#nM + 1] = m 
-        end 
-    end
+    for _, m in ipairs(MainMemory) do if m.isSelf then nM[#nM + 1] = m end end
     MainMemory = nM
     lastCount = -1
     feedback(ClearLogBtn, "CLEARED")
@@ -845,12 +747,7 @@ end)
 local ClearSelfBtn = createBotBtn("CLEAR SELF", UDim2.new(0, 544, 0.68, 0), UDim2.new(0, 108, 0, 58), Color3.fromRGB(100, 80, 60))
 ClearSelfBtn.MouseButton1Click:Connect(function()
     local nM = {}
-    for _, m in ipairs(MainMemory) do 
-        if not m.isSelf then 
-            -- Замена table.insert на индексы
-            nM[#nM + 1] = m 
-        end 
-    end
+    for _, m in ipairs(MainMemory) do if not m.isSelf then nM[#nM + 1] = m end end
     MainMemory = nM
     lastCount = -1
     feedback(ClearSelfBtn, "CLEARED")
@@ -870,25 +767,15 @@ end)
 
 SelfBtn.MouseButton1Click:Connect(function() 
     selfMode = not selfMode
-    if selfMode then
-        SelfBtn.Text = "SELF: ON"
-        SelfBtn.BackgroundColor3 = Color3.fromRGB(45, 90, 45)
-    else
-        SelfBtn.Text = "SELF: OFF"
-        SelfBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
-    end
+    SelfBtn.Text = "SELF: " .. (selfMode and "ON" or "OFF")
+    SelfBtn.BackgroundColor3 = selfMode and Color3.fromRGB(45, 90, 45) or Color3.fromRGB(150, 50, 50)
     lastCount = -1
 end)
 
 AntiSpamBtn.MouseButton1Click:Connect(function() 
     antiSpam = not antiSpam
-    if antiSpam then
-        AntiSpamBtn.Text = "ANTI-SPAM: ON"
-        AntiSpamBtn.BackgroundColor3 = Color3.fromRGB(180, 150, 40)
-    else
-        AntiSpamBtn.Text = "ANTI-SPAM: OFF"
-        AntiSpamBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 85)
-    end
+    AntiSpamBtn.Text = "ANTI-SPAM: " .. (antiSpam and "ON" or "OFF")
+    AntiSpamBtn.BackgroundColor3 = antiSpam and Color3.fromRGB(180, 150, 40) or Color3.fromRGB(80, 80, 85)
 end)
 
 -- ================= ТРИ КНОПКИ (FS, FC, IS) =================
@@ -896,13 +783,7 @@ local function createTypeBtn(text, pos, state, color, varName)
     local b = Instance.new("TextButton")
     b.Size = UDim2.new(0, 150, 0, 35)
     b.Position = pos
-    
-    if state then
-        b.BackgroundColor3 = color
-    else
-        b.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-    end
-    
+    b.BackgroundColor3 = state and color or Color3.fromRGB(40, 40, 45)
     b.Text = text
     b.TextColor3 = Color3.new(1, 1, 1)
     b.Font = Enum.Font.SourceSansBold
@@ -911,25 +792,13 @@ local function createTypeBtn(text, pos, state, color, varName)
     b.Parent = ContentFrame
     
     b.MouseButton1Click:Connect(function()
-        if varName == "FS" then 
-            spyFS = not spyFS 
-        elseif varName == "FC" then 
-            spyFC = not spyFC 
-        elseif varName == "IS" then 
-            spyIS = not spyIS 
-        end
+        if varName == "FS" then spyFS = not spyFS 
+        elseif varName == "FC" then spyFC = not spyFC 
+        elseif varName == "IS" then spyIS = not spyIS end
 
-        local currentState = false
-        if varName == "FS" then currentState = spyFS
-        elseif varName == "FC" then currentState = spyFC
-        elseif varName == "IS" then currentState = spyIS end
-
+        local currentState = (varName == "FS" and spyFS) or (varName == "FC" and spyFC) or (varName == "IS" and spyIS)
         b.Text = varName .. " SPY: " .. (currentState and "ON" or "OFF")
-        if currentState then
-            b.BackgroundColor3 = color
-        else
-            b.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-        end
+        b.BackgroundColor3 = currentState and color or Color3.fromRGB(40, 40, 45)
     end)
 end
 
