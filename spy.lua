@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.8.3 FULL SOURCE RESTORED ]] --
+-- [[ KRALLDEN SPY v9.8.4 FULL SOURCE RESTORED & ACCESS FIXED ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -63,6 +63,7 @@ local spyIS = false
 local sortEnabled = false
 local currentSelectionGUID = nil
 local lastCount = 0
+local lastRedCount = 0 -- Для отслеживания изменений в Бан-листе
 local isMin = false
 
 local function generateGUID() 
@@ -195,7 +196,7 @@ local function getSortedDetails(d)
     return prefix .. string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", d.type, d.path, displayArgs, d.path, methodName, d.argsStr)
 end
 
--- Логика Бан-листа (UI) - ФИКС (Версия 9.7.6 Style)
+-- Логика Бан-листа (UI) - ФИКС ДОСТУПА (Выполняется только в основном потоке)
 local function updateRedListUI()
     if not RedListScroll then return end
     for _, v in pairs(RedListScroll:GetChildren()) do 
@@ -221,7 +222,7 @@ local function updateRedListUI()
         
         b.MouseButton1Click:Connect(function() 
             currentSelectionGUID = data.guid
-            Details.Text = getSortedDetails(data) -- Сохранена структура SORT
+            Details.Text = getSortedDetails(data)
             updateDetailsCanvas()
             refreshSelectionColors()
         end)
@@ -240,7 +241,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(0, 200, 1, 0)
 Title.BackgroundTransparency = 1
 Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.8.3"
+Title.Text = "KRALLDEN SPY v9.8.4"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 16
@@ -385,7 +386,7 @@ local function getSafePath(obj)
     return finalPath:gsub("%.%[", "[") 
 end
 
--- ================= ADD LOG - ФИКС (Версия 9.7.6 Style) =================
+-- ================= ADD LOG =================
 local function addLog(rem, args, isSelf, typeLabel)
     if typeLabel == "FS" and not spyFS then return end
     if typeLabel == "FC" and not spyFC then return end
@@ -430,7 +431,7 @@ local function addLog(rem, args, isSelf, typeLabel)
     local finalArgsStr = table.concat(argList, ", ")
     
     local alreadyExists = false
-    for _, m in ipairs(MainMemory) do
+    for _, m in pairs(MainMemory) do
         if m.path == eventPath and m.isSelf == isSelf then
             if isSelf then if selfMode or m.argsStr == finalArgsStr then alreadyExists = true break end
             else if controlMode or m.argsStr == finalArgsStr then alreadyExists = true break end end
@@ -442,7 +443,7 @@ local function addLog(rem, args, isSelf, typeLabel)
     local displayArgs = (finalArgsStr == "") and "None" or finalArgsStr
     local logDetails = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, displayArgs, eventPath, methodName, finalArgsStr)
 
-    -- Anti-Spam (9.7.6 Structure)
+    -- Anti-Spam (Логика обновлена, чтобы не вызывать UI напрямую из хука)
     if not isSelf and not controlMode and antiSpam then
         local currentTime = tick()
         if (currentTime - (AntiSpamCooldowns[eventPath] or 0)) < 0.4 then
@@ -455,16 +456,14 @@ local function addLog(rem, args, isSelf, typeLabel)
                 local nM = {}
                 for _, m in ipairs(MainMemory) do if not (m.path == eventPath and not m.isSelf) then nM[#nM + 1] = m end end
                 MainMemory = nM
-                lastCount = -1
-                currentSelectionGUID = nil
-                updateRedListUI()
+                lastCount = -1 -- Триггер обновления лога
                 return 
             end
         else AntiSpamCounts[eventPath] = 0 end
         AntiSpamCooldowns[eventPath] = currentTime
     end
 
-    -- Добавление в память ( Стабильная вставка )
+    -- Добавление в память
     local newLog = { 
         guid = generateGUID(), name = tostring(rem.Name), type = typeLabel, isSelf = isSelf, 
         fullText = logDetails, path = eventPath, argsStr = finalArgsStr, rawArgs = args 
@@ -541,7 +540,6 @@ DelBtn.MouseButton1Click:Connect(function()
         if targetData then
             if foundInBanList then 
                 ManualBannedPaths[targetData.path] = nil
-                updateRedListUI()
                 feedback(DelBtn, "UNBANNED") 
             else 
                 feedback(DelBtn, "DELETED") 
@@ -579,7 +577,6 @@ BlockBtn.MouseButton1Click:Connect(function()
                 MainMemory = nM
                 lastCount = -1
                 currentSelectionGUID = nil
-                updateRedListUI()
                 Details.Text = "Banned."
                 updateDetailsCanvas()
                 feedback(BlockBtn, "BANNED")
@@ -620,13 +617,23 @@ MinBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- ================= RENDER LOOP =================
+-- ================= RENDER LOOP (ЕДИНЫЙ ИСТОЧНИК ОБНОВЛЕНИЯ) =================
 task.spawn(function()
     while task.wait(0.5) do
         if not ContentFrame or not ContentFrame.Visible then continue end
-        if #MainMemory == lastCount then continue end
         
+        -- Проверка Бан-листа (Безопасное обновление UI из основного потока)
+        local currentRedCount = 0
+        for _ in pairs(ManualBannedPaths) do currentRedCount = currentRedCount + 1 end
+        if currentRedCount ~= lastRedCount then
+            lastRedCount = currentRedCount
+            updateRedListUI()
+        end
+
+        -- Проверка основного лога
+        if #MainMemory == lastCount then continue end
         lastCount = #MainMemory
+        
         for _, v in pairs(Scroll:GetChildren()) do 
             if v:IsA("TextButton") then v:Destroy() end 
         end
@@ -698,32 +705,19 @@ end)
 local SortBtn = createBotBtn("SORT: OFF", UDim2.new(0, 305, 0.68, 0), UDim2.new(0, 120, 0, 58), Color3.fromRGB(80, 80, 85))
 SortBtn.MouseButton1Click:Connect(function()
     sortEnabled = not sortEnabled
-    if sortEnabled then
-        SortBtn.Text = "SORT: ON"
-        SortBtn.BackgroundColor3 = Color3.fromRGB(0, 140, 140)
-    else
-        SortBtn.Text = "SORT: OFF"
-        SortBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 85)
-    end
+    SortBtn.Text = "SORT: " .. (sortEnabled and "ON" or "OFF")
+    SortBtn.BackgroundColor3 = sortEnabled and Color3.fromRGB(0, 140, 140) or Color3.fromRGB(80, 80, 85)
     
     if currentSelectionGUID then
-        local found = false
-        for _, m in ipairs(MainMemory) do
-            if m.guid == currentSelectionGUID then
-                Details.Text = getSortedDetails(m)
-                found = true
-                break
-            end
+        local foundData = nil
+        for _, m in pairs(MainMemory) do if m.guid == currentSelectionGUID then foundData = m break end end
+        if not foundData then
+            for _, d in pairs(ManualBannedPaths) do if d.guid == currentSelectionGUID then foundData = d break end end
         end
-        if not found then
-            for _, d in pairs(ManualBannedPaths) do
-                if d.guid == currentSelectionGUID then
-                    Details.Text = getSortedDetails(d)
-                    break
-                end
-            end
+        if foundData then
+            Details.Text = getSortedDetails(foundData)
+            updateDetailsCanvas()
         end
-        updateDetailsCanvas()
     end
 end)
 
@@ -768,25 +762,15 @@ end)
 
 SelfBtn.MouseButton1Click:Connect(function() 
     selfMode = not selfMode
-    if selfMode then
-        SelfBtn.Text = "SELF: ON"
-        SelfBtn.BackgroundColor3 = Color3.fromRGB(45, 90, 45)
-    else
-        SelfBtn.Text = "SELF: OFF"
-        SelfBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
-    end
+    SelfBtn.Text = "SELF: " .. (selfMode and "ON" or "OFF")
+    SelfBtn.BackgroundColor3 = selfMode and Color3.fromRGB(45, 90, 45) or Color3.fromRGB(150, 50, 50)
     lastCount = -1
 end)
 
 AntiSpamBtn.MouseButton1Click:Connect(function() 
     antiSpam = not antiSpam
-    if antiSpam then
-        AntiSpamBtn.Text = "ANTI-SPAM: ON"
-        AntiSpamBtn.BackgroundColor3 = Color3.fromRGB(180, 150, 40)
-    else
-        AntiSpamBtn.Text = "ANTI-SPAM: OFF"
-        AntiSpamBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 85)
-    end
+    AntiSpamBtn.Text = "ANTI-SPAM: " .. (antiSpam and "ON" or "OFF")
+    AntiSpamBtn.BackgroundColor3 = antiSpam and Color3.fromRGB(180, 150, 40) or Color3.fromRGB(80, 80, 85)
 end)
 
 -- ================= ТРИ КНОПКИ (FS, FC, IS) =================
