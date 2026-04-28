@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.8.4 FULL SOURCE RESTORED & ACCESS FIXED ]] --
+-- [[ KRALLDEN SPY v9.8.5 FULL SOURCE RESTORED & ACCESS FIXED ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -196,7 +196,7 @@ local function getSortedDetails(d)
     return prefix .. string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", d.type, d.path, displayArgs, d.path, methodName, d.argsStr)
 end
 
--- Логика Бан-листа (UI) - ФИКС ДОСТУПА (Выполняется только в основном потоке)
+-- Логика Бан-листа (UI)
 local function updateRedListUI()
     if not RedListScroll then return end
     for _, v in pairs(RedListScroll:GetChildren()) do 
@@ -214,6 +214,7 @@ local function updateRedListUI()
         b.ClipsDescendants = true
         
         local displayPath = path:match("[^%.%[%]]+$") or path
+        displayPath = displayPath:gsub('^"', ''):gsub('"$', ''):gsub('%]$', '')
         b.Text = " [X] " .. displayPath
         b.Parent = RedListScroll
         
@@ -241,7 +242,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(0, 200, 1, 0)
 Title.BackgroundTransparency = 1
 Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.8.4"
+Title.Text = "KRALLDEN SPY v9.8.5"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 16
@@ -443,7 +444,7 @@ local function addLog(rem, args, isSelf, typeLabel)
     local displayArgs = (finalArgsStr == "") and "None" or finalArgsStr
     local logDetails = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, displayArgs, eventPath, methodName, finalArgsStr)
 
-    -- Anti-Spam (Логика обновлена, чтобы не вызывать UI напрямую из хука)
+    -- Anti-Spam
     if not isSelf and not controlMode and antiSpam then
         local currentTime = tick()
         if (currentTime - (AntiSpamCooldowns[eventPath] or 0)) < 0.4 then
@@ -456,7 +457,7 @@ local function addLog(rem, args, isSelf, typeLabel)
                 local nM = {}
                 for _, m in ipairs(MainMemory) do if not (m.path == eventPath and not m.isSelf) then nM[#nM + 1] = m end end
                 MainMemory = nM
-                lastCount = -1 -- Триггер обновления лога
+                lastCount = -1 
                 return 
             end
         else AntiSpamCounts[eventPath] = 0 end
@@ -617,12 +618,12 @@ MinBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- ================= RENDER LOOP (ЕДИНЫЙ ИСТОЧНИК ОБНОВЛЕНИЯ) =================
+-- ================= RENDER LOOP =================
 task.spawn(function()
     while task.wait(0.5) do
         if not ContentFrame or not ContentFrame.Visible then continue end
         
-        -- Проверка Бан-листа (Безопасное обновление UI из основного потока)
+        -- Проверка Бан-листа
         local currentRedCount = 0
         for _ in pairs(ManualBannedPaths) do currentRedCount = currentRedCount + 1 end
         if currentRedCount ~= lastRedCount then
@@ -647,7 +648,11 @@ task.spawn(function()
             b.Size = UDim2.new(1, -6, 0, 30)
             b.LayoutOrder = i
             
-            local display = string.format("[%s]%s %s", d.type, (d.isSelf and " [S]" or ""), d.name)
+            -- ФИКС: Очистка пути, чтобы в списке было только имя
+            local displayName = d.name:match("[^%.%[%]]+$") or d.name
+            displayName = displayName:gsub('^"', ''):gsub('"$', ''):gsub('%]$', '')
+            
+            local display = string.format("[%s]%s %s", d.type, (d.isSelf and " [S]" or ""), displayName)
             b.Text = display
             
             if currentSelectionGUID == d.guid then
