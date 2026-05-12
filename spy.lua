@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.8.5 FULL SOURCE RESTORED & ACCESS FIXED ]] --
+-- [[ KRALLDEN SPY v9.8.6 - FIXED NAME DISPLAY & DEL LOGIC ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -63,7 +63,7 @@ local spyIS = false
 local sortEnabled = false
 local currentSelectionGUID = nil
 local lastCount = 0
-local lastRedCount = 0 -- Для отслеживания изменений в Бан-листе
+local lastRedCount = 0 
 local isMin = false
 
 local function generateGUID() 
@@ -242,7 +242,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(0, 200, 1, 0)
 Title.BackgroundTransparency = 1
 Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.8.5"
+Title.Text = "KRALLDEN SPY v9.8.6"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 16
@@ -513,11 +513,13 @@ ControlBtn.MouseButton1Click:Connect(function()
     lastCount = -1 
 end)
 
+-- УЛУЧШЕННАЯ КНОПКА УДАЛЕНИЯ (DEL BTN)
 DelBtn.MouseButton1Click:Connect(function()
     if currentSelectionGUID then
         local targetData = nil
         local foundInBanList = false
         
+        -- 1. Сначала ищем в Бан-листе
         for path, data in pairs(ManualBannedPaths) do
             if data.guid == currentSelectionGUID then 
                 targetData = {path = path, guid = data.guid}
@@ -526,11 +528,12 @@ DelBtn.MouseButton1Click:Connect(function()
             end
         end
         
+        -- 2. Если в бан листе нет, ищем в основном логе
         if not foundInBanList then
             local nM = {}
             for _, m in ipairs(MainMemory) do 
                 if m.guid == currentSelectionGUID then 
-                    targetData = m 
+                    targetData = m -- Запоминаем данные удаляемого ивента
                 else 
                     nM[#nM + 1] = m 
                 end 
@@ -538,9 +541,19 @@ DelBtn.MouseButton1Click:Connect(function()
             if targetData then MainMemory = nM end
         end
         
+        -- Логика полной очистки для возможности повторного появления
         if targetData then
-            if foundInBanList then 
+            -- Если удаляем лог, то также принудительно чистим этот путь из бан-фильтров
+            -- Это позволяет ивенту снова начать логироваться (внутренний бан-список очищается)
+            if ManualBannedPaths[targetData.path] then
                 ManualBannedPaths[targetData.path] = nil
+            end
+            
+            -- Очищаем кулдауны спама для этого пути
+            AntiSpamCooldowns[targetData.path] = 0
+            AntiSpamCounts[targetData.path] = 0
+
+            if foundInBanList then 
                 feedback(DelBtn, "UNBANNED") 
             else 
                 feedback(DelBtn, "DELETED") 
@@ -648,11 +661,12 @@ task.spawn(function()
             b.Size = UDim2.new(1, -6, 0, 30)
             b.LayoutOrder = i
             
-            -- ФИКС: Очистка пути, чтобы в списке было только имя
-            local displayName = d.name:match("[^%.%[%]]+$") or d.name
-            displayName = displayName:gsub('^"', ''):gsub('"$', ''):gsub('%]$', '')
+            -- ФИКС ОТОБРАЖЕНИЯ: Берем только конечное имя ивента
+            local cleanName = d.name:match("[^%.%[%]]+$") or d.name
+            cleanName = cleanName:gsub('^"', ''):gsub('"$', ''):gsub('%]$', '')
             
-            local display = string.format("[%s]%s %s", d.type, (d.isSelf and " [S]" or ""), displayName)
+            -- Формат: [Тип] [S] [Имя]
+            local display = string.format("[%s]%s [%s]", d.type, (d.isSelf and " [S]" or ""), cleanName)
             b.Text = display
             
             if currentSelectionGUID == d.guid then
