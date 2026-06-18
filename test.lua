@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.9.0 - DUAL-HOOK HYBRID BYPASS ]] --
+-- [[ KRALLDEN SPY v9.9.0 - DUAL-HOOK HYBRID BYPASS (DEBUG EDITION) ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -230,136 +230,10 @@ local function updateRedListUI()
     end
 end
 
--- ================= HEADER =================
-local Header = Instance.new("Frame")
-Header.Size = UDim2.new(1, 0, 0, 35)
-Header.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-Header.ZIndex = 10
-Header.BorderSizePixel = 0
-Header.Parent = Main
-
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(0, 200, 1, 0)
-Title.BackgroundTransparency = 1
-Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.9.0"
-Title.TextColor3 = Color3.new(1, 1, 1)
-Title.Font = Enum.Font.SourceSansBold
-Title.TextSize = 16
-Title.ZIndex = 11
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.Parent = Header
-
-local MinBtn = Instance.new("TextButton")
-MinBtn.Size = UDim2.new(0, 45, 0, 35)
-MinBtn.Position = UDim2.new(1, -45, 0, 0)
-MinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180)
-MinBtn.Text = "_"
-MinBtn.TextColor3 = Color3.new(1, 1, 1)
-MinBtn.TextSize = 22
-MinBtn.ZIndex = 12
-MinBtn.BorderSizePixel = 0
-MinBtn.Parent = Header
-
-local function createHeaderBtn(text, offset, color, sizeX)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0, sizeX or 100, 0, 24)
-    b.Position = UDim2.new(1, offset, 0.5, -12)
-    b.BackgroundColor3 = color
-    b.Text = text
-    b.TextColor3 = Color3.new(1, 1, 1)
-    b.Font = Enum.Font.SourceSansBold
-    b.TextSize = 11
-    b.ZIndex = 11
-    b.BorderSizePixel = 0
-    b.Parent = Header
-    return b
-end
-
-local ControlBtn = createHeaderBtn("CONTROL: ON", -150, Color3.fromRGB(0, 170, 190))
-local SelfBtn = createHeaderBtn("SELF: ON", -235, Color3.fromRGB(45, 90, 45), 80)
-local DelBtn = createHeaderBtn("DEL BTN", -310, Color3.fromRGB(200, 100, 0), 70)
-local AntiSpamBtn = createHeaderBtn("ANTI-SPAM: ON", -420, Color3.fromRGB(180, 150, 40))
-AntiSpamBtn.Visible = false
-local BlockBtn = createHeaderBtn("BLOCK EVENT", -530, Color3.fromRGB(150, 50, 50))
-BlockBtn.Visible = false
-
--- ================= CONTENT =================
-ContentFrame = Instance.new("Frame")
-ContentFrame.Name = "ContentFrame"
-ContentFrame.Size = UDim2.new(1, 0, 1, -35)
-ContentFrame.Position = UDim2.new(0, 0, 0, 35)
-ContentFrame.BackgroundTransparency = 1
-ContentFrame.ClipsDescendants = true
-ContentFrame.Parent = Main
-
-Scroll = Instance.new("ScrollingFrame")
-Scroll.Position = UDim2.new(0, 8, 0, 8)
-Scroll.Size = UDim2.new(0, 190, 1, -16)
-Scroll.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-Scroll.BorderSizePixel = 0
-Scroll.ScrollBarThickness = 4
-Scroll.Parent = ContentFrame
-
-local ScrollLayout = Instance.new("UIListLayout")
-ScrollLayout.SortOrder = Enum.SortOrder.LayoutOrder
-ScrollLayout.Parent = Scroll
-
-DetailsScroll = Instance.new("ScrollingFrame")
-DetailsScroll.Position = UDim2.new(0, 205, 0, 8)
-DetailsScroll.Size = UDim2.new(0, 448, 0, 255)
-DetailsScroll.BackgroundColor3 = Color3.fromRGB(10, 10, 12)
-DetailsScroll.BorderSizePixel = 0
-DetailsScroll.ScrollBarThickness = 4
-DetailsScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-DetailsScroll.Parent = ContentFrame
-
-Details = Instance.new("TextBox")
-Details.Size = UDim2.new(1, -10, 0, 0)
-Details.Position = UDim2.new(0, 5, 0, 5)
-Details.BackgroundTransparency = 1
-Details.TextColor3 = Color3.new(1, 1, 1)
-Details.MultiLine = true
-Details.TextWrapped = true
-Details.TextEditable = true
-Details.Font = Enum.Font.Code
-Details.TextSize = 12
-Details.TextXAlignment = Enum.TextXAlignment.Left
-Details.TextYAlignment = Enum.TextYAlignment.Top
-Details.ClearTextOnFocus = false
-Details.AutomaticSize = Enum.AutomaticSize.Y
-Details.Parent = DetailsScroll
-
-Details:GetPropertyChangedSignal("Text"):Connect(updateDetailsCanvas)
-
-local BanListTitle = Instance.new("TextLabel")
-BanListTitle.Size = UDim2.new(0, 150, 0, 20)
-BanListTitle.Position = UDim2.new(0, 662, 0, 125)
-BanListTitle.BackgroundTransparency = 1
-BanListTitle.Text = "BAN LIST"
-BanListTitle.TextColor3 = Color3.fromRGB(255, 100, 100)
-BanListTitle.Font = Enum.Font.SourceSansBold
-BanListTitle.TextSize = 14
-BanListTitle.Parent = ContentFrame
-
-RedListScroll = Instance.new("ScrollingFrame")
-RedListScroll.Position = UDim2.new(0, 662, 0, 145)
-RedListScroll.Size = UDim2.new(0, 150, 0, 250)
-RedListScroll.BackgroundColor3 = Color3.fromRGB(30, 15, 15)
-RedListScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-RedListScroll.BorderSizePixel = 0
-RedListScroll.ScrollBarThickness = 4
-RedListScroll.Parent = ContentFrame
-
-local RedListLayout = Instance.new("UIListLayout")
-RedListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-RedListLayout.Parent = RedListScroll
-
 -- ================= PATH LOGIC =================
 local function getSafePath(obj)
     local p = ""
-    pcall(function() 
+    local success, err = pcall(function() 
         local t = obj
         while t and t ~= game do 
             local n = tostring(t.Name)
@@ -382,6 +256,10 @@ local function getSafePath(obj)
             t = t.Parent 
         end 
     end)
+    
+    if not success then
+        warn("[KRALLDEN SPY ERROR] Ошибка внутри вычисления пути getSafePath: " .. tostring(err))
+    end
     
     local finalPath = "game." .. p
     return finalPath:gsub("%.%[", "[") 
@@ -475,9 +353,9 @@ end
 
 -- ================= ГИБРИДНЫЙ ПЕРЕХВАТ ОЧЕРЕДИ (__namecall + __index) =================
 local targetMethods = {
-    ["FireServer"] = "FS", ["fireserver"] = "FS",
-    ["FireClient"] = "FC", ["fireclient"] = "FC",
-    ["InvokeServer"] = "IS", ["invokeserver"] = "IS"
+    ["fireserver"] = "FS", ["fireserver"] = "FS",
+    ["fireclient"] = "FC", ["fireclient"] = "FC",
+    ["invokeserver"] = "IS", ["invokeserver"] = "IS"
 }
 
 local logQueue = {}
@@ -486,9 +364,13 @@ task.spawn(function()
     while true do
         if #logQueue > 0 then
             local data = table.remove(logQueue, 1)
-            pcall(function()
+            -- Обновленный pcall, выводящий ошибку логирования в консоль (F9)
+            local success, err = pcall(function()
                 addLog(data.rem, data.args, data.isSelf, data.typeLabel)
             end)
+            if not success then
+                warn("[KRALLDEN SPY ERROR] Сбой обработки лога в очереди: " .. tostring(err))
+            end
         end
         task.wait()
     end
@@ -498,36 +380,57 @@ local oldNamecall
 local oldIndex
 
 -- Ловушка №1: Перехват через __namecall (для стандартных вызовов через ":")
-pcall(function()
+local hook1Success, hook1Err = pcall(function()
     if hookmetamethod then
         oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
             local method = getnamecallmethod()
-            local logType = targetMethods[method]
+            local logType = nil
+            
+            -- Защита от детекта строк и изменения регистра
+            if type(method) == "string" then
+                logType = targetMethods[string.lower(method)]
+            end
             
             if logType then
                 local checkSuccess, isInstance = pcall(function() return typeof(self) == "Instance" end)
                 if checkSuccess and isInstance then
                     table.insert(logQueue, {rem = self, args = {...}, isSelf = checkcaller(), typeLabel = logType})
+                elseif not checkSuccess then
+                    warn("[KRALLDEN SPY ERROR] Ошибка проверки self в __namecall: " .. tostring(isInstance))
                 end
             end
             return oldNamecall(self, ...)
         end))
+        print("[KRALLDEN SPY] Хук __namecall успешно инициализирован.")
+    else
+        warn("[KRALLDEN SPY WARNING] hookmetamethod недоступен в этом эксплойте.")
     end
 end)
+if not hook1Success then
+    warn("[KRALLDEN SPY ERROR] Критическая ошибка при установке хука __namecall: " .. tostring(hook1Err))
+end
 
 -- Ловушка №2: Перехват через __index (Байпассит оптимизированные кэш-вызовы вида RemoteEvent.FireServer)
-pcall(function()
+local hook2Success, hook2Err = pcall(function()
     if hookmetamethod then
         oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, key)
             local checkSuccess, isInstance = pcall(function() return typeof(self) == "Instance" end)
             if checkSuccess and isInstance then
-                local logType = targetMethods[key]
+                local logType = nil
+                
+                -- Защита от детекта строк в индексах
+                if type(key) == "string" then
+                    logType = targetMethods[string.lower(key)]
+                end
+                
                 if logType then
                     -- Возвращаем прокси-функцию, которая запишет логи при вызове кэшированного метода
                     return newcclosure(function(obj, ...)
                         local innerSuccess, innerInstance = pcall(function() return typeof(obj) == "Instance" end)
                         if innerSuccess and innerInstance then
                             table.insert(logQueue, {rem = obj, args = {...}, isSelf = checkcaller(), typeLabel = logType})
+                        elseif not innerSuccess then
+                            warn("[KRALLDEN SPY ERROR] Сбой прокси-функции в __index: " .. tostring(innerInstance))
                         end
                         return oldIndex(obj, key)(obj, ...)
                     end)
@@ -535,25 +438,42 @@ pcall(function()
             end
             return oldIndex(self, key)
         end))
+        print("[KRALLDEN SPY] Хук __index успешно инициализирован.")
     end
 end)
+if not hook2Success then
+    warn("[KRALLDEN SPY ERROR] Критическая ошибка при установке хука __index: " .. tostring(hook2Err))
+end
 
 -- Резервный вариант, если hookmetamethod сломан во всем эксплойте
 if (not oldNamecall and not oldIndex) then
-    pcall(function()
+    local fallbackSuccess, fallbackErr = pcall(function()
         local mt = getrawmetatable(game)
-        oldNamecall = hookfunction(mt.__namecall, newcclosure(function(self, ...)
-            local method = getnamecallmethod()
-            local logType = targetMethods[method]
-            if logType then
-                local checkSuccess, isInstance = pcall(function() return typeof(self) == "Instance" end)
-                if checkSuccess and isInstance then
-                    table.insert(logQueue, {rem = self, args = {...}, isSelf = checkcaller(), typeLabel = logType})
+        if mt and mt.__namecall then
+            oldNamecall = hookfunction(mt.__namecall, newcclosure(function(self, ...)
+                local method = getnamecallmethod()
+                local logType = nil
+                
+                if type(method) == "string" then
+                    logType = targetMethods[string.lower(method)]
                 end
-            end
-            return oldNamecall(self, ...)
-        end))
+                
+                if logType then
+                    local checkSuccess, isInstance = pcall(function() return typeof(self) == "Instance" end)
+                    if checkSuccess and isInstance then
+                        table.insert(logQueue, {rem = self, args = {...}, isSelf = checkcaller(), typeLabel = logType})
+                    end
+                end
+                return oldNamecall(self, ...)
+            end))
+            print("[KRALLDEN SPY] Аварийный хук применен через getrawmetatable.__namecall.")
+        else
+            warn("[KRALLDEN SPY ERROR] Не удалось получить метатаблицу игры или метод __namecall.")
+        end
     end)
+    if not fallbackSuccess then
+        warn("[KRALLDEN SPY ERROR] Сбой резервного метода перехвата: " .. tostring(fallbackErr))
+    end
 end
 
 -- ================= INTERACTIONS =================
