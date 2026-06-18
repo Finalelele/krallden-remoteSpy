@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.8.8 - ULTRA STEALTH BYPASS ]] --
+-- [[ KRALLDEN SPY v9.8.9 - ULTIMATE STEALTH & UI FIX ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -242,7 +242,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(0, 200, 1, 0)
 Title.BackgroundTransparency = 1
 Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.8.8"
+Title.Text = "KRALLDEN SPY v9.8.9"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 16
@@ -343,6 +343,7 @@ BanListTitle.Font = Enum.Font.SourceSansBold
 BanListTitle.TextSize = 14
 BanListTitle.Parent = ContentFrame
 
+-- ФИКС: Исправлена привязка к родителю (теперь отображается корректно)
 RedListScroll = Instance.new("ScrollingFrame")
 RedListScroll.Position = UDim2.new(0, 662, 0, 145)
 RedListScroll.Size = UDim2.new(0, 150, 0, 250)
@@ -350,7 +351,7 @@ RedListScroll.BackgroundColor3 = Color3.fromRGB(30, 15, 15)
 RedListScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 RedListScroll.BorderSizePixel = 0
 RedListScroll.ScrollBarThickness = 4
-RedListScroll.Parent = RedListScroll
+RedListScroll.Parent = ContentFrame
 
 local RedListLayout = Instance.new("UIListLayout")
 RedListLayout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -473,7 +474,7 @@ local function addLog(rem, args, isSelf, typeLabel)
     if #MainMemory > 150 then table.remove(MainMemory, 151) end
 end
 
--- ================= СУПЕР-СКРЫТЫЙ ПЕРЕХВАТ ОЧЕРЕДИ [BYPASS UPDATE v2] =================
+-- ================= УЛЬТРА-СКРЫТЫЙ ПЕРЕХВАТ ОЧЕРЕДИ v2 [STEALTH BYPASS] =================
 local targetMethods = {
     ["FireServer"] = "FS", ["fireserver"] = "FS",
     ["FireClient"] = "FC", ["fireclient"] = "FC",
@@ -482,7 +483,7 @@ local targetMethods = {
 
 local logQueue = {}
 
--- Фоновый обработчик очереди (вынесен отдельно от игровых потоков)
+-- Асинхронный фоновый обработчик очереди (с нулевой задержкой для игры)
 task.spawn(function()
     while true do
         if #logQueue > 0 then
@@ -491,41 +492,47 @@ task.spawn(function()
                 addLog(data.rem, data.args, data.isSelf, data.typeLabel)
             end)
         end
-        task.wait() -- Минимальный интервал, чтобы разгрузить память
+        task.wait()
     end
 end)
 
 local oldNamecall
+-- Усовершенствованная многоуровневая логика хука без вызова палевных функций
 local hookSuccess = pcall(function()
-    local mt = getrawmetatable(game)
-    -- МЕТОД 1: hookfunction на mt.__namecall. Самый безопасный метод, ссылка в таблице не меняется!
-    oldNamecall = hookfunction(mt.__namecall, newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-        local logType = targetMethods[method]
-        
-        if logType then
-            local isSelf = false
-            pcall(function() isSelf = checkcaller() end)
-            
-            -- Моментально пушим в очередь без задержек и тасков внутри хука
-            table.insert(logQueue, {rem = self, args = {...}, isSelf = isSelf, typeLabel = logType})
-        end
-        
-        return oldNamecall(self, ...)
-    end))
-end)
-
-if not hookSuccess or not oldNamecall then
-    -- МЕТОД 2: Резервный hookmetamethod, если hookfunction не поддерживается исполнителем
-    pcall(function()
+    if hookmetamethod then
+        -- МЕТОД 1 (Самый безопасный): Работает напрямую через инстанс без использования getrawmetatable
         oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
             local method = getnamecallmethod()
             local logType = targetMethods[method]
             
             if logType then
-                local isSelf = false
-                pcall(function() isSelf = checkcaller() end)
-                table.insert(logQueue, {rem = self, args = {...}, isSelf = isSelf, typeLabel = logType})
+                -- Защита от HoneyPot: проверяем, что это реальный Instance, защищаясь от фейковых таблиц античита
+                local checkSuccess, isInstance = pcall(function() return typeof(self) == "Instance" end)
+                if checkSuccess and isInstance then
+                    local isSelf = checkcaller()
+                    table.insert(logQueue, {rem = self, args = {...}, isSelf = isSelf, typeLabel = logType})
+                end
+            end
+            
+            return oldNamecall(self, ...)
+        end))
+    end
+end)
+
+if not hookSuccess or not oldNamecall then
+    -- МЕТОД 2 (Резервный): Обычный хук функции метатаблицы (без прямой перезаписи адресов метатаблицы!)
+    pcall(function()
+        local mt = getrawmetatable(game)
+        oldNamecall = hookfunction(mt.__namecall, newcclosure(function(self, ...)
+            local method = getnamecallmethod()
+            local logType = targetMethods[method]
+            
+            if logType then
+                local checkSuccess, isInstance = pcall(function() return typeof(self) == "Instance" end)
+                if checkSuccess and isInstance then
+                    local isSelf = checkcaller()
+                    table.insert(logQueue, {rem = self, args = {...}, isSelf = isSelf, typeLabel = logType})
+                end
             end
             
             return oldNamecall(self, ...)
