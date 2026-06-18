@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.8.6 - FIXED NAME DISPLAY & DEL LOGIC ]] --
+-- [[ KRALLDEN SPY v9.8.7 - ANTI-CHEAT BYPASS UPDATE ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -242,7 +242,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(0, 200, 1, 0)
 Title.BackgroundTransparency = 1
 Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.8.6"
+Title.Text = "KRALLDEN SPY v9.8.7"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 16
@@ -473,28 +473,46 @@ local function addLog(rem, args, isSelf, typeLabel)
     if #MainMemory > 150 then table.remove(MainMemory, 151) end
 end
 
--- ================= ПЕРЕХВАТ (HOOKS) =================
-local mt = getrawmetatable(game)
-local old = mt.__namecall
-setreadonly(mt, false)
+-- ================= ПЕРЕХВАТ (HOOKS) [BYPASS UPDATE] =================
+local targetMethods = {
+    ["FireServer"] = "FS", ["fireserver"] = "FS",
+    ["FireClient"] = "FC", ["fireclient"] = "FC",
+    ["InvokeServer"] = "IS", ["invokeserver"] = "IS"
+}
 
-mt.__namecall = newcclosure(function(self, ...)
-    local m = getnamecallmethod()
-    local a = {...}
-    local s = checkcaller()
-    
-    local lowerM = m:lower()
-    if lowerM == "fireserver" then 
-        task.spawn(addLog, self, a, s, "FS")
-    elseif lowerM == "fireclient" then 
-        task.spawn(addLog, self, a, s, "FC")
-    elseif lowerM == "invokeserver" then 
-        task.spawn(addLog, self, a, s, "IS") 
-    end
-    
-    return old(self, ...)
+local oldNamecall
+local success, err = pcall(function()
+    oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        local logType = targetMethods[method]
+        
+        if logType then
+            local args = {...}
+            local isSelf = checkcaller()
+            task.spawn(addLog, self, args, isSelf, logType)
+        end
+        
+        return oldNamecall(self, ...)
+    end))
 end)
-setreadonly(mt, true)
+
+if not success or not oldNamecall then
+    local mt = getrawmetatable(game)
+    local old = mt.__namecall
+    setreadonly(mt, false)
+    mt.__namecall = newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        local logType = targetMethods[method]
+        
+        if logType then
+            local args = {...}
+            local isSelf = checkcaller()
+            task.spawn(addLog, self, args, isSelf, logType)
+        end
+        return old(self, ...)
+    end)
+    setreadonly(mt, true)
+end
 
 -- ================= INTERACTIONS =================
 ControlBtn.MouseButton1Click:Connect(function() 
@@ -533,7 +551,7 @@ DelBtn.MouseButton1Click:Connect(function()
             local nM = {}
             for _, m in ipairs(MainMemory) do 
                 if m.guid == currentSelectionGUID then 
-                    targetData = m -- Запоминаем данные удаляемого ивента
+                    targetData = m 
                 else 
                     nM[#nM + 1] = m 
                 end 
@@ -543,13 +561,10 @@ DelBtn.MouseButton1Click:Connect(function()
         
         -- Логика полной очистки для возможности повторного появления
         if targetData then
-            -- Если удаляем лог, то также принудительно чистим этот путь из бан-фильтров
-            -- Это позволяет ивенту снова начать логироваться (внутренний бан-список очищается)
             if ManualBannedPaths[targetData.path] then
                 ManualBannedPaths[targetData.path] = nil
             end
             
-            -- Очищаем кулдауны спама для этого пути
             AntiSpamCooldowns[targetData.path] = 0
             AntiSpamCounts[targetData.path] = 0
 
@@ -661,11 +676,9 @@ task.spawn(function()
             b.Size = UDim2.new(1, -6, 0, 30)
             b.LayoutOrder = i
             
-            -- ФИКС ОТОБРАЖЕНИЯ: Берем только конечное имя ивента
             local cleanName = d.name:match("[^%.%[%]]+$") or d.name
             cleanName = cleanName:gsub('^"', ''):gsub('"$', ''):gsub('%]$', '')
             
-            -- Формат: [Тип] [S] [Имя]
             local display = string.format("[%s]%s [%s]", d.type, (d.isSelf and " [S]" or ""), cleanName)
             b.Text = display
             
