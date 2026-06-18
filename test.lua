@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.8.7 - ANTI-CHEAT BYPASS UPDATE ]] --
+-- [[ KRALLDEN SPY v9.8.8 - ULTRA STEALTH BYPASS ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -242,7 +242,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(0, 200, 1, 0)
 Title.BackgroundTransparency = 1
 Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.8.7"
+Title.Text = "KRALLDEN SPY v9.8.8"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 16
@@ -350,7 +350,7 @@ RedListScroll.BackgroundColor3 = Color3.fromRGB(30, 15, 15)
 RedListScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 RedListScroll.BorderSizePixel = 0
 RedListScroll.ScrollBarThickness = 4
-RedListScroll.Parent = ContentFrame
+RedListScroll.Parent = RedListScroll
 
 local RedListLayout = Instance.new("UIListLayout")
 RedListLayout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -473,45 +473,64 @@ local function addLog(rem, args, isSelf, typeLabel)
     if #MainMemory > 150 then table.remove(MainMemory, 151) end
 end
 
--- ================= ПЕРЕХВАТ (HOOKS) [BYPASS UPDATE] =================
+-- ================= СУПЕР-СКРЫТЫЙ ПЕРЕХВАТ ОЧЕРЕДИ [BYPASS UPDATE v2] =================
 local targetMethods = {
     ["FireServer"] = "FS", ["fireserver"] = "FS",
     ["FireClient"] = "FC", ["fireclient"] = "FC",
     ["InvokeServer"] = "IS", ["invokeserver"] = "IS"
 }
 
+local logQueue = {}
+
+-- Фоновый обработчик очереди (вынесен отдельно от игровых потоков)
+task.spawn(function()
+    while true do
+        if #logQueue > 0 then
+            local data = table.remove(logQueue, 1)
+            pcall(function()
+                addLog(data.rem, data.args, data.isSelf, data.typeLabel)
+            end)
+        end
+        task.wait() -- Минимальный интервал, чтобы разгрузить память
+    end
+end)
+
 local oldNamecall
-local success, err = pcall(function()
-    oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+local hookSuccess = pcall(function()
+    local mt = getrawmetatable(game)
+    -- МЕТОД 1: hookfunction на mt.__namecall. Самый безопасный метод, ссылка в таблице не меняется!
+    oldNamecall = hookfunction(mt.__namecall, newcclosure(function(self, ...)
         local method = getnamecallmethod()
         local logType = targetMethods[method]
         
         if logType then
-            local args = {...}
-            local isSelf = checkcaller()
-            task.spawn(addLog, self, args, isSelf, logType)
+            local isSelf = false
+            pcall(function() isSelf = checkcaller() end)
+            
+            -- Моментально пушим в очередь без задержек и тасков внутри хука
+            table.insert(logQueue, {rem = self, args = {...}, isSelf = isSelf, typeLabel = logType})
         end
         
         return oldNamecall(self, ...)
     end))
 end)
 
-if not success or not oldNamecall then
-    local mt = getrawmetatable(game)
-    local old = mt.__namecall
-    setreadonly(mt, false)
-    mt.__namecall = newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-        local logType = targetMethods[method]
-        
-        if logType then
-            local args = {...}
-            local isSelf = checkcaller()
-            task.spawn(addLog, self, args, isSelf, logType)
-        end
-        return old(self, ...)
+if not hookSuccess or not oldNamecall then
+    -- МЕТОД 2: Резервный hookmetamethod, если hookfunction не поддерживается исполнителем
+    pcall(function()
+        oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+            local method = getnamecallmethod()
+            local logType = targetMethods[method]
+            
+            if logType then
+                local isSelf = false
+                pcall(function() isSelf = checkcaller() end)
+                table.insert(logQueue, {rem = self, args = {...}, isSelf = isSelf, typeLabel = logType})
+            end
+            
+            return oldNamecall(self, ...)
+        end))
     end)
-    setreadonly(mt, true)
 end
 
 -- ================= INTERACTIONS =================
@@ -531,13 +550,11 @@ ControlBtn.MouseButton1Click:Connect(function()
     lastCount = -1 
 end)
 
--- УЛУЧШЕННАЯ КНОПКА УДАЛЕНИЯ (DEL BTN)
 DelBtn.MouseButton1Click:Connect(function()
     if currentSelectionGUID then
         local targetData = nil
         local foundInBanList = false
         
-        -- 1. Сначала ищем в Бан-листе
         for path, data in pairs(ManualBannedPaths) do
             if data.guid == currentSelectionGUID then 
                 targetData = {path = path, guid = data.guid}
@@ -546,7 +563,6 @@ DelBtn.MouseButton1Click:Connect(function()
             end
         end
         
-        -- 2. Если в бан листе нет, ищем в основном логе
         if not foundInBanList then
             local nM = {}
             for _, m in ipairs(MainMemory) do 
@@ -559,7 +575,6 @@ DelBtn.MouseButton1Click:Connect(function()
             if targetData then MainMemory = nM end
         end
         
-        -- Логика полной очистки для возможности повторного появления
         if targetData then
             if ManualBannedPaths[targetData.path] then
                 ManualBannedPaths[targetData.path] = nil
@@ -651,7 +666,6 @@ task.spawn(function()
     while task.wait(0.5) do
         if not ContentFrame or not ContentFrame.Visible then continue end
         
-        -- Проверка Бан-листа
         local currentRedCount = 0
         for _ in pairs(ManualBannedPaths) do currentRedCount = currentRedCount + 1 end
         if currentRedCount ~= lastRedCount then
@@ -659,7 +673,6 @@ task.spawn(function()
             updateRedListUI()
         end
 
-        -- Проверка основного лога
         if #MainMemory == lastCount then continue end
         lastCount = #MainMemory
         
