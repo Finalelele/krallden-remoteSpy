@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.8.9 - ULTIMATE STEALTH & UI FIX ]] --
+-- [[ KRALLDEN SPY v9.9.0 - DUAL-HOOK HYBRID BYPASS ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -242,7 +242,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(0, 200, 1, 0)
 Title.BackgroundTransparency = 1
 Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.8.9"
+Title.Text = "KRALLDEN SPY v9.9.0"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 16
@@ -343,7 +343,6 @@ BanListTitle.Font = Enum.Font.SourceSansBold
 BanListTitle.TextSize = 14
 BanListTitle.Parent = ContentFrame
 
--- ФИКС: Исправлена привязка к родителю (теперь отображается корректно)
 RedListScroll = Instance.new("ScrollingFrame")
 RedListScroll.Position = UDim2.new(0, 662, 0, 145)
 RedListScroll.Size = UDim2.new(0, 150, 0, 250)
@@ -474,7 +473,7 @@ local function addLog(rem, args, isSelf, typeLabel)
     if #MainMemory > 150 then table.remove(MainMemory, 151) end
 end
 
--- ================= УЛЬТРА-СКРЫТЫЙ ПЕРЕХВАТ ОЧЕРЕДИ v2 [STEALTH BYPASS] =================
+-- ================= ГИБРИДНЫЙ ПЕРЕХВАТ ОЧЕРЕДИ (__namecall + __index) =================
 local targetMethods = {
     ["FireServer"] = "FS", ["fireserver"] = "FS",
     ["FireClient"] = "FC", ["fireclient"] = "FC",
@@ -483,7 +482,6 @@ local targetMethods = {
 
 local logQueue = {}
 
--- Асинхронный фоновый обработчик очереди (с нулевой задержкой для игры)
 task.spawn(function()
     while true do
         if #logQueue > 0 then
@@ -497,44 +495,62 @@ task.spawn(function()
 end)
 
 local oldNamecall
--- Усовершенствованная многоуровневая логика хука без вызова палевных функций
-local hookSuccess = pcall(function()
+local oldIndex
+
+-- Ловушка №1: Перехват через __namecall (для стандартных вызовов через ":")
+pcall(function()
     if hookmetamethod then
-        -- МЕТОД 1 (Самый безопасный): Работает напрямую через инстанс без использования getrawmetatable
         oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
             local method = getnamecallmethod()
             local logType = targetMethods[method]
             
             if logType then
-                -- Защита от HoneyPot: проверяем, что это реальный Instance, защищаясь от фейковых таблиц античита
                 local checkSuccess, isInstance = pcall(function() return typeof(self) == "Instance" end)
                 if checkSuccess and isInstance then
-                    local isSelf = checkcaller()
-                    table.insert(logQueue, {rem = self, args = {...}, isSelf = isSelf, typeLabel = logType})
+                    table.insert(logQueue, {rem = self, args = {...}, isSelf = checkcaller(), typeLabel = logType})
                 end
             end
-            
             return oldNamecall(self, ...)
         end))
     end
 end)
 
-if not hookSuccess or not oldNamecall then
-    -- МЕТОД 2 (Резервный): Обычный хук функции метатаблицы (без прямой перезаписи адресов метатаблицы!)
+-- Ловушка №2: Перехват через __index (Байпассит оптимизированные кэш-вызовы вида RemoteEvent.FireServer)
+pcall(function()
+    if hookmetamethod then
+        oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, key)
+            local checkSuccess, isInstance = pcall(function() return typeof(self) == "Instance" end)
+            if checkSuccess and isInstance then
+                local logType = targetMethods[key]
+                if logType then
+                    -- Возвращаем прокси-функцию, которая запишет логи при вызове кэшированного метода
+                    return newcclosure(function(obj, ...)
+                        local innerSuccess, innerInstance = pcall(function() return typeof(obj) == "Instance" end)
+                        if innerSuccess and innerInstance then
+                            table.insert(logQueue, {rem = obj, args = {...}, isSelf = checkcaller(), typeLabel = logType})
+                        end
+                        return oldIndex(obj, key)(obj, ...)
+                    end)
+                end
+            end
+            return oldIndex(self, key)
+        end))
+    end
+end)
+
+-- Резервный вариант, если hookmetamethod сломан во всем эксплойте
+if (not oldNamecall and not oldIndex) then
     pcall(function()
         local mt = getrawmetatable(game)
         oldNamecall = hookfunction(mt.__namecall, newcclosure(function(self, ...)
             local method = getnamecallmethod()
             local logType = targetMethods[method]
-            
             if logType then
                 local checkSuccess, isInstance = pcall(function() return typeof(self) == "Instance" end)
                 if checkSuccess and isInstance then
-                    local isSelf = checkcaller()
-                    table.insert(logQueue, {rem = self, args = {...}, isSelf = isSelf, typeLabel = logType})
+                    table.insert(logQueue, {rem = self, args = {...}, isSelf = checkcaller(), typeLabel = logType})
                 end
             end
-            
             return oldNamecall(self, ...)
         end))
     end)
