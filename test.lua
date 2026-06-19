@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.9.0 - DUAL-HOOK HYBRID BYPASS ]] --
+-- [[ KRALLDEN SPY v9.8.6 - FIXED NAME DISPLAY & DEL LOGIC ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -10,16 +10,13 @@ if playerGui:FindFirstChild("KralldenSpyUI") then
 end
 
 for _, gui in ipairs(game.CoreGui:GetChildren()) do
-    local success, err = pcall(function()
+    pcall(function()
         if gui.Name == "KralldenSpyUI" then 
             gui:Destroy()
         elseif gui:FindFirstChild("KralldenSpyUI") then 
             gui.KralldenSpyUI:Destroy() 
         end
     end)
-    if not success then 
-        warn("[Krallden Spy UI Cleanup Error]: " .. tostring(err)) 
-    end
 end
 
 local targetParent = (gethui and gethui()) or (game:GetService("CoreGui"):FindFirstChild("RobloxGui")) or playerGui
@@ -245,7 +242,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(0, 200, 1, 0)
 Title.BackgroundTransparency = 1
 Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.9.0"
+Title.Text = "KRALLDEN SPY v9.8.6"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 16
@@ -362,7 +359,7 @@ RedListLayout.Parent = RedListScroll
 -- ================= PATH LOGIC =================
 local function getSafePath(obj)
     local p = ""
-    local success, err = pcall(function() 
+    pcall(function() 
         local t = obj
         while t and t ~= game do 
             local n = tostring(t.Name)
@@ -385,9 +382,6 @@ local function getSafePath(obj)
             t = t.Parent 
         end 
     end)
-    if not success then 
-        warn("[Krallden Spy Path Resolution Error]: " .. tostring(err)) 
-    end
     
     local finalPath = "game." .. p
     return finalPath:gsub("%.%[", "[") 
@@ -479,120 +473,27 @@ local function addLog(rem, args, isSelf, typeLabel)
     if #MainMemory > 150 then table.remove(MainMemory, 151) end
 end
 
--- ================= ГИБРИДНЫЙ ПЕРЕХВАТ ОЧЕРЕДИ (__namecall + __index) =================
-local targetMethods = {
-    ["FireServer"] = "FS", ["fireserver"] = "FS",
-    ["FireClient"] = "FC", ["fireclient"] = "FC",
-    ["InvokeServer"] = "IS", ["invokeserver"] = "IS"
-}
-
-local logQueue = {}
-
-task.spawn(function()
-    while true do
-        if #logQueue > 0 then
-            local data = table.remove(logQueue, 1)
-            local success, err = pcall(function()
-                addLog(data.rem, data.args, data.isSelf, data.typeLabel)
-            end)
-            if not success then 
-                warn("[Krallden Spy Log Queue Error]: " .. tostring(err)) 
-            end
-        end
-        task.wait()
-    end
-end)
-
+-- ================= ПЕРЕХВАТ (HOOKS) FIXED =================
 local oldNamecall
-local oldIndex
-
--- Ловушка №1: Перехват через __namecall (для стандартных вызовов через ":")
-local ncSuccess, ncErr = pcall(function()
-    if hookmetamethod then
-        oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-            local method = getnamecallmethod()
-            local logType = targetMethods[method]
-            
-            if logType then
-                local checkSuccess, isInstance = pcall(function() return typeof(self) == "Instance" end)
-                if not checkSuccess then 
-                    warn("[Krallden Spy Namecall TypeCheck Error]: " .. tostring(isInstance)) 
-                end
-                
-                if checkSuccess and isInstance then
-                    table.insert(logQueue, {rem = self, args = {...}, isSelf = checkcaller(), typeLabel = logType})
-                end
-            end
-            return oldNamecall(self, ...)
-        end))
-    end
-end)
-if not ncSuccess then 
-    warn("[Krallden Spy Namecall Hook Installation Failed]: " .. tostring(ncErr)) 
-end
-
--- Ловушка №2: Перехват через __index (Байпассит оптимизированные кэш-вызовы вида RemoteEvent.FireServer)
-local idxSuccess, idxErr = pcall(function()
-    if hookmetamethod then
-        oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, key)
-            local checkSuccess, isInstance = pcall(function() return typeof(self) == "Instance" end)
-            if not checkSuccess then 
-                warn("[Krallden Spy Index TypeCheck Error]: " .. tostring(isInstance)) 
-            end
-            
-            if checkSuccess and isInstance then
-                local logType = targetMethods[key]
-                if logType then
-                    local originalFunc = oldIndex(self, key)
-                    return newcclosure(function(obj, ...)
-                        local innerSuccess, innerInstance = pcall(function() return typeof(obj) == "Instance" end)
-                        if not innerSuccess then 
-                            warn("[Krallden Spy Proxy TypeCheck Error]: " .. tostring(innerInstance)) 
-                        end
-                        
-                        if innerSuccess and innerInstance then
-                            table.insert(logQueue, {rem = obj, args = {...}, isSelf = checkcaller(), typeLabel = logType})
-                        end
-                        return originalFunc(obj, ...)
-                    end)
-                end
-            end
-            return oldIndex(self, key)
-        end))
-    end
-end)
-if not idxSuccess then 
-    warn("[Krallden Spy Index Hook Installation Failed]: " .. tostring(idxErr)) 
-end
-
--- Резервный вариант, если hookmetamethod сломан во всем эксплойте
-if (not oldNamecall and not oldIndex) then
-    local fbSuccess, fbErr = pcall(function()
-        local mt = getrawmetatable(game)
-        if mt then
-            if setreadonly then setreadonly(mt, false) end
-            oldNamecall = hookfunction(mt.__namecall, newcclosure(function(self, ...)
-                local method = getnamecallmethod()
-                local logType = targetMethods[method]
-                if logType then
-                    local checkSuccess, isInstance = pcall(function() return typeof(self) == "Instance" end)
-                    if not checkSuccess then 
-                        warn("[Krallden Spy Fallback TypeCheck Error]: " .. tostring(isInstance)) 
-                    end
-                    
-                    if checkSuccess and isInstance then
-                        table.insert(logQueue, {rem = self, args = {...}, isSelf = checkcaller(), typeLabel = logType})
-                    end
-                end
-                return oldNamecall(self, ...)
-            end))
-            if setreadonly then setreadonly(mt, true) end
+oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+    local m = getnamecallmethod()
+    local a = {...}
+    local s = checkcaller()
+    
+    -- Добавлена защита от nil, если экзекутор не смог получить метод
+    if m then
+        local lowerM = tostring(m):lower()
+        if lowerM == "fireserver" then 
+            task.spawn(addLog, self, a, s, "FS")
+        elseif lowerM == "fireclient" then 
+            task.spawn(addLog, self, a, s, "FC")
+        elseif lowerM == "invokeserver" then 
+            task.spawn(addLog, self, a, s, "IS") 
         end
-    end)
-    if not fbSuccess then 
-        warn("[Krallden Spy Fallback Hook Installation Failed]: " .. tostring(fbErr)) 
     end
-end
+    
+    return oldNamecall(self, ...)
+end))
 
 -- ================= INTERACTIONS =================
 ControlBtn.MouseButton1Click:Connect(function() 
@@ -611,11 +512,13 @@ ControlBtn.MouseButton1Click:Connect(function()
     lastCount = -1 
 end)
 
+-- УЛУЧШЕННАЯ КНОПКА УДАЛЕНИЯ (DEL BTN)
 DelBtn.MouseButton1Click:Connect(function()
     if currentSelectionGUID then
         local targetData = nil
         local foundInBanList = false
         
+        -- 1. Сначала ищем в Бан-листе
         for path, data in pairs(ManualBannedPaths) do
             if data.guid == currentSelectionGUID then 
                 targetData = {path = path, guid = data.guid}
@@ -624,11 +527,12 @@ DelBtn.MouseButton1Click:Connect(function()
             end
         end
         
+        -- 2. Если в бан листе нет, ищем в основном логе
         if not foundInBanList then
             local nM = {}
             for _, m in ipairs(MainMemory) do 
                 if m.guid == currentSelectionGUID then 
-                    targetData = m 
+                    targetData = m -- Запоминаем данные удаляемого ивента
                 else 
                     nM[#nM + 1] = m 
                 end 
@@ -636,11 +540,15 @@ DelBtn.MouseButton1Click:Connect(function()
             if targetData then MainMemory = nM end
         end
         
+        -- Логика полной очистки для возможности повторного появления
         if targetData then
+            -- Если удаляем лог, то также принудительно чистим этот путь из бан-фильтров
+            -- Это позволяет ивенту снова начать логироваться (внутренний бан-список очищается)
             if ManualBannedPaths[targetData.path] then
                 ManualBannedPaths[targetData.path] = nil
             end
             
+            -- Очищаем кулдауны спама для этого пути
             AntiSpamCooldowns[targetData.path] = 0
             AntiSpamCounts[targetData.path] = 0
 
@@ -727,6 +635,7 @@ task.spawn(function()
     while task.wait(0.5) do
         if not ContentFrame or not ContentFrame.Visible then continue end
         
+        -- Проверка Бан-листа
         local currentRedCount = 0
         for _ in pairs(ManualBannedPaths) do currentRedCount = currentRedCount + 1 end
         if currentRedCount ~= lastRedCount then
@@ -734,6 +643,7 @@ task.spawn(function()
             updateRedListUI()
         end
 
+        -- Проверка основного лога
         if #MainMemory == lastCount then continue end
         lastCount = #MainMemory
         
@@ -750,9 +660,11 @@ task.spawn(function()
             b.Size = UDim2.new(1, -6, 0, 30)
             b.LayoutOrder = i
             
+            -- ФИКС ОТОБРАЖЕНИЯ: Берем только конечное имя ивента
             local cleanName = d.name:match("[^%.%[%]]+$") or d.name
             cleanName = cleanName:gsub('^"', ''):gsub('"$', ''):gsub('%]$', '')
             
+            -- Формат: [Тип] [S] [Имя]
             local display = string.format("[%s]%s [%s]", d.type, (d.isSelf and " [S]" or ""), cleanName)
             b.Text = display
             
