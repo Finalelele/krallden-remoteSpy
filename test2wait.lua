@@ -488,31 +488,47 @@ local function addLog(rem, eventName, eventPath, args, isSelf, typeLabel)
 end
 
 -- ================= ПЕРЕХВАТ (HOOKS ИСПРАВЛЕННЫЙ) =================
-local oldNamecall
-oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-    local method = getnamecallmethod()
+-- ================= НОВЫЙ СВЕРХНАДЁЖНЫЙ ПЕРЕХВАТ (HOOKFUNCTION) =================
+
+-- 1. Перехват FireServer (Для RemoteEvent)
+local oldFireServer
+oldFireServer = hookfunction(Instance.new("RemoteEvent").FireServer, newcclosure(function(self, ...)
     local args = {...}
     local isSelf = checkcaller() 
     
-    local lowerMethod = method:lower()
-    if lowerMethod == "fireserver" or lowerMethod == "fireclient" or lowerMethod == "invokeserver" then 
-        local typeLabel = (lowerMethod == "fireserver" and "FS") or (lowerMethod == "fireclient" and "FC") or "IS"
-        
-        -- Извлекаем Имя и Путь прямо здесь, пока мы в главном синхронном потоке namecall!
-        local eventName = "Unknown"
-        local eventPath = "game.Unknown"
-        pcall(function()
-            eventName = tostring(self.Name)
-            eventPath = getSafePath(self)
-        end)
-
-        print("⚡ [ХУК] Перехвачен сетевой метод:", method, "| Путь:", eventPath)
-        -- Передаем уже готовые строки в task.spawn
-        task.spawn(addLog, self, eventName, eventPath, args, isSelf, typeLabel)
-    end
-    print("хук перехвачен")
-    return oldNamecall(self, ...)
+    local eventName = "Unknown"
+    local eventPath = "game.Unknown"
+    pcall(function()
+        eventName = tostring(self.Name)
+        eventPath = getSafePath(self)
+    end)
+    
+    print("⚡ [ХУК FS] Отправлен FireServer | Путь:", eventPath)
+    task.spawn(addLog, self, eventName, eventPath, args, isSelf, "FS")
+    
+    return oldFireServer(self, ...)
 end))
+
+-- 2. Перехват InvokeServer (Для RemoteFunction)
+local oldInvokeServer
+oldInvokeServer = hookfunction(Instance.new("RemoteFunction").InvokeServer, newcclosure(function(self, ...)
+    local args = {...}
+    local isSelf = checkcaller() 
+    
+    local eventName = "Unknown"
+    local eventPath = "game.Unknown"
+    pcall(function()
+        eventName = tostring(self.Name)
+        eventPath = getSafePath(self)
+    end)
+    
+    print("⚡ [ХУК IS] Отправлен InvokeServer | Путь:", eventPath)
+    task.spawn(addLog, self, eventName, eventPath, args, isSelf, "IS")
+    
+    return oldInvokeServer(self, ...)
+end))
+
+print("=== СЕТЕВЫЕ ХУКИ РЕО组织ОВАНЫ НА HOOKFUNCTION ===")
 
 -- ================= INTERACTIONS =================
 ControlBtn.MouseButton1Click:Connect(function() 
