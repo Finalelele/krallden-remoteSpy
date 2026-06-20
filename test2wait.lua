@@ -389,6 +389,7 @@ end
 
 -- ================= ADD LOG (ИСПРАВЛЕННЫЙ) =================
 local function addLog(rem, eventName, eventPath, args, isSelf, typeLabel)
+    print("--> [addLog] Функция вызвана для:", eventName, "Тип:", typeLabel)
     if typeLabel == "FS" and not spyFS then return end
     if typeLabel == "FC" and not spyFC then return end
     if typeLabel == "IS" and not spyIS then return end
@@ -479,13 +480,9 @@ local function addLog(rem, eventName, eventPath, args, isSelf, typeLabel)
         guid = generateGUID(), name = eventName, type = typeLabel, isSelf = isSelf, 
         fullText = logDetails, path = eventPath, argsStr = finalArgsStr, rawArgs = args 
     }
-    print("--- АДЛОГ РАБОТАЕТ ---")
-    print("Пытаюсь добавить в память эвент:", eventName)
-    print("Текущий размер памяти ДО добавления:", #MainMemory)
     
     table.insert(MainMemory, 1, newLog)
-    
-    print("память заполнена! Новый размер:", #MainMemory)
+    print("+++ [УСПЕХ] Добавлено в память! Текущий размер:", #MainMemory)
     
     if #MainMemory > 150 then table.remove(MainMemory, 151) end
 end
@@ -508,7 +505,8 @@ oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
             eventName = tostring(self.Name)
             eventPath = getSafePath(self)
         end)
-        
+
+        print("⚡ [ХУК] Перехвачен сетевой метод:", method, "| Путь:", eventPath)
         -- Передаем уже готовые строки в task.spawn
         task.spawn(addLog, self, eventName, eventPath, args, isSelf, typeLabel)
     end
