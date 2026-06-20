@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.8.6 - FIXED NAME DISPLAY & DEL LOGIC ]] --
+-- [[ KRALLDEN SPY v9.8.7 - FIXED NAME DISPLAY & DEL LOGIC ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -242,7 +242,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(0, 200, 1, 0)
 Title.BackgroundTransparency = 1
 Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.8.6"
+Title.Text = "KRALLDEN SPY v9.8.7"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 16
@@ -387,13 +387,13 @@ local function getSafePath(obj)
     return finalPath:gsub("%.%[", "[") 
 end
 
--- ================= ADD LOG =================
-local function addLog(rem, args, isSelf, typeLabel)
+-- ================= ADD LOG (ИСПРАВЛЕННЫЙ) =================
+local function addLog(rem, eventName, eventPath, args, isSelf, typeLabel)
+    print("--> [addLog] Функция вызвана для:", eventName, "Тип:", typeLabel)
     if typeLabel == "FS" and not spyFS then return end
     if typeLabel == "FC" and not spyFC then return end
     if typeLabel == "IS" and not spyIS then return end
     
-    local eventPath = getSafePath(rem)
     if not isSelf and ManualBannedPaths[eventPath] then return end
 
     local function parseValue(v, d)
@@ -404,7 +404,10 @@ local function addLog(rem, args, isSelf, typeLabel)
         elseif t == "table" then
             local isArray = true
             local count = 0
-            for k, val in pairs(v) do count = count + 1 if type(k) ~= "number" or k ~= count then isArray = false break end end
+            for k, val in pairs(v) do 
+                count = count + 1 
+                if type(k) ~= "number" or k ~= count then isArray = false break end 
+            end
             local res = "{"
             local i = 0
             for k, val in pairs(v) do 
@@ -422,13 +425,21 @@ local function addLog(rem, args, isSelf, typeLabel)
             local tn = typeof(v)
             if tn == "CFrame" then return "CFrame.new(" .. tostring(v) .. ")"
             elseif tn == "Vector3" then return "Vector3.new(" .. tostring(v) .. ")"
-            elseif tn == "Instance" then return getSafePath(v) end
+            elseif tn == "Instance" then 
+                -- Защищаем чтение пути аргумента-инстанса
+                local pSuccess, pPath = pcall(getSafePath, v)
+                return pSuccess and pPath or "game.UnknownInstance"
+            end
             return tostring(v)
         else return tostring(v) end
     end
 
+    -- Безопасно парсим аргументы через pcall, чтобы избежать silent crash
     local argList = {}
-    for _, v in ipairs(args) do argList[#argList + 1] = parseValue(v) end
+    for _, v in ipairs(args) do 
+        local pSuccess, pVal = pcall(parseValue, v)
+        argList[#argList + 1] = pSuccess and pVal or ("[" .. typeof(v) .. "]")
+    end
     local finalArgsStr = table.concat(argList, ", ")
     
     local alreadyExists = false
@@ -464,37 +475,44 @@ local function addLog(rem, args, isSelf, typeLabel)
         AntiSpamCooldowns[eventPath] = currentTime
     end
 
-    -- Добавление в память
+    -- Добавление в память (теперь используем заранее извлеченные строки)
     local newLog = { 
-        guid = generateGUID(), name = tostring(rem.Name), type = typeLabel, isSelf = isSelf, 
+        guid = generateGUID(), name = eventName, type = typeLabel, isSelf = isSelf, 
         fullText = logDetails, path = eventPath, argsStr = finalArgsStr, rawArgs = args 
     }
+    
     table.insert(MainMemory, 1, newLog)
+    print("+++ [УСПЕХ] Добавлено в память! Текущий размер:", #MainMemory)
+    
     if #MainMemory > 150 then table.remove(MainMemory, 151) end
 end
 
--- ================= ПЕРЕХВАТ (HOOKS) =================
-local mt = getrawmetatable(game)
-local old = mt.__namecall
-setreadonly(mt, false)
+-- ================= ПЕРЕХВАТ (HOOKS ИСПРАВЛЕННЫЙ) =================
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+    local isSelf = checkcaller() 
+    
+    local lowerMethod = method:lower()
+    if lowerMethod == "fireserver" or lowerMethod == "fireclient" or lowerMethod == "invokeserver" then 
+        local typeLabel = (lowerMethod == "fireserver" and "FS") or (lowerMethod == "fireclient" and "FC") or "IS"
+        
+        -- Извлекаем Имя и Путь прямо здесь, пока мы в главном синхронном потоке namecall!
+        local eventName = "Unknown"
+        local eventPath = "game.Unknown"
+        pcall(function()
+            eventName = tostring(self.Name)
+            eventPath = getSafePath(self)
+        end)
 
-mt.__namecall = newcclosure(function(self, ...)
-    local m = getnamecallmethod()
-    local a = {...}
-    local s = checkcaller()
-    
-    local lowerM = m:lower()
-    if lowerM == "fireserver" then 
-        task.spawn(addLog, self, a, s, "FS")
-    elseif lowerM == "fireclient" then 
-        task.spawn(addLog, self, a, s, "FC")
-    elseif lowerM == "invokeserver" then 
-        task.spawn(addLog, self, a, s, "IS") 
+        print("⚡ [ХУК] Перехвачен сетевой метод:", method, "| Путь:", eventPath)
+        -- Передаем уже готовые строки в task.spawn
+        task.spawn(addLog, self, eventName, eventPath, args, isSelf, typeLabel)
     end
-    
-    return old(self, ...)
-end)
-setreadonly(mt, true)
+    print("хук перехвачен")
+    return oldNamecall(self, ...)
+end))
 
 -- ================= INTERACTIONS =================
 ControlBtn.MouseButton1Click:Connect(function() 
@@ -633,10 +651,10 @@ end)
 
 -- ================= RENDER LOOP =================
 task.spawn(function()
-    while task.wait(0.5) do
+    while task.wait(0.3) do
         if not ContentFrame or not ContentFrame.Visible then continue end
         
-        -- Проверка Бан-листа
+        -- Обновление Бан-листа
         local currentRedCount = 0
         for _ in pairs(ManualBannedPaths) do currentRedCount = currentRedCount + 1 end
         if currentRedCount ~= lastRedCount then
@@ -644,49 +662,52 @@ task.spawn(function()
             updateRedListUI()
         end
 
-        -- Проверка основного лога
+        -- Проверка изменений в памяти
         if #MainMemory == lastCount then continue end
         lastCount = #MainMemory
         
-        for _, v in pairs(Scroll:GetChildren()) do 
-            if v:IsA("TextButton") then v:Destroy() end 
+        -- Полная очистка старых кнопок перед перерисовкой
+        for _, v in ipairs(Scroll:GetChildren()) do 
+            if v:IsA("TextButton") then 
+                v:Destroy() 
+            end 
         end
         
+        -- Сортировка данных (сначала свои события [S], потом остальные)
         local sortedMemory = {}
-        for _, d in ipairs(MainMemory) do if d.isSelf then sortedMemory[#sortedMemory + 1] = d end end
-        for _, d in ipairs(MainMemory) do if not d.isSelf then sortedMemory[#sortedMemory + 1] = d end end
+        for _, d in ipairs(MainMemory) do if d.isSelf then table.insert(sortedMemory, d) end end
+        for _, d in ipairs(MainMemory) do if not d.isSelf then table.insert(sortedMemory, d) end end
         
+        -- Генерация новых кнопок в UI
         for i, d in ipairs(sortedMemory) do
+            print("кнопка создана")
             local b = Instance.new("TextButton")
             b.Size = UDim2.new(1, -6, 0, 30)
             b.LayoutOrder = i
-            
-            -- ФИКС ОТОБРАЖЕНИЯ: Берем только конечное имя ивента
-            local cleanName = d.name:match("[^%.%[%]]+$") or d.name
-            cleanName = cleanName:gsub('^"', ''):gsub('"$', ''):gsub('%]$', '')
-            
-            -- Формат: [Тип] [S] [Имя]
-            local display = string.format("[%s]%s [%s]", d.type, (d.isSelf and " [S]" or ""), cleanName)
-            b.Text = display
-            
-            if currentSelectionGUID == d.guid then
-                b.BackgroundColor3 = Color3.fromRGB(100, 50, 200)
-            else
-                if d.isSelf then
-                    b.BackgroundColor3 = Color3.fromRGB(45, 90, 45)
-                else
-                    b.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-                end
-            end
-            
+            b.Font = Enum.Font.SourceSansBold
+            b.TextSize = 12
             b.TextColor3 = Color3.new(1, 1, 1)
             b.BorderSizePixel = 0
             b.ClipsDescendants = true
-            b.Parent = Scroll
+            
+            -- Выделение конечного имени удаленного объекта
+            local cleanName = d.name:match("[^%.%[%]]+$") or d.name
+            cleanName = cleanName:gsub('^"', ''):gsub('"$', ''):gsub('%]$', '')
+            
+            b.Text = string.format("[%s]%s [%s]", d.type, (d.isSelf and " [S]" or ""), cleanName)
+            
+            -- Установка цвета в зависимости от состояния выделения и автора
+            if currentSelectionGUID == d.guid then
+                b.BackgroundColor3 = Color3.fromRGB(100, 50, 200)
+            else
+                b.BackgroundColor3 = d.isSelf and Color3.fromRGB(45, 90, 45) or Color3.fromRGB(40, 40, 45)
+            end
             
             b:SetAttribute("GUID", d.guid)
             b:SetAttribute("IsSelf", d.isSelf)
+            b.Parent = Scroll
             
+            -- Обработка клика по кнопке лога
             b.MouseButton1Click:Connect(function()
                 currentSelectionGUID = d.guid
                 Details.Text = getSortedDetails(d)
