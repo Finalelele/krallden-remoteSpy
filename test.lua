@@ -488,7 +488,7 @@ oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     elseif lowerMethod == "invokeserver" then 
         task.spawn(addLog, self, args, isSelf, "IS") 
     end
-    
+    print("хук перехвачен")
     return oldNamecall(self, ...)
 end))
 
@@ -630,6 +630,7 @@ end)
 -- ================= RENDER LOOP =================
 task.spawn(function()
     while task.wait(0.3) do
+        print("render работает")
         if not ContentFrame or not ContentFrame.Visible then continue end
         
         -- Обновление Бан-листа
@@ -658,6 +659,7 @@ task.spawn(function()
         
         -- Генерация новых кнопок в UI
         for i, d in ipairs(sortedMemory) do
+            print("кнопка создана")
             local b = Instance.new("TextButton")
             b.Size = UDim2.new(1, -6, 0, 30)
             b.LayoutOrder = i
