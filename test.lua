@@ -63,6 +63,7 @@ local spyIS = false
 local sortEnabled = false
 local currentSelectionGUID = nil
 local lastCount = 0
+local memoryVersion = 0 -- Фикс зависания: трекер обновлений памяти логов
 local lastRedCount = 0 
 local isMin = false
 
@@ -369,7 +370,7 @@ local function getSafePath(obj)
             else
                 safeName = n
             end
-            
+       
             if p == "" then 
                 p = safeName 
             else 
@@ -471,43 +472,28 @@ local function addLog(rem, args, isSelf, typeLabel)
     }
     table.insert(MainMemory, 1, newLog)
     if #MainMemory > 150 then table.remove(MainMemory, 151) end
+    memoryVersion = memoryVersion + 1 -- Обновляем версию памяти при добавлении нового лога
 end
 
 -- ================= ПЕРЕХВАТ (HOOKS) =================
 local oldNamecall
 oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-    local method = getnamecallmethod()
-    local args = {...}
-    local caller = checkcaller()
+    local m = getnamecallmethod()
+    local a = {...}
+    local s = checkcaller()
     
-    local lowerM = tostring(method):lower()
+    -- Безопасное приведение к строке исключает вылеты скрипта из-за nil-значений
+    local lowerM = tostring(m):lower()
     if lowerM == "fireserver" then 
-        task.spawn(addLog, self, args, caller, "FS")
+        task.spawn(addLog, self, a, s, "FS")
     elseif lowerM == "fireclient" then 
-        task.spawn(addLog, self, args, caller, "FC")
+        task.spawn(addLog, self, a, s, "FC")
     elseif lowerM == "invokeserver" then 
-        task.spawn(addLog, self, args, caller, "IS") 
+        task.spawn(addLog, self, a, s, "IS") 
     end
     
     return oldNamecall(self, ...)
 end))
-
--- 2. Прямой хук на функции (ловит кэшированные вызовы вроде: local f = Remote.FireServer; f(Remote))
-local function hookRemoteMethod(className, methodName, typeLabel)
-    local success, err = pcall(function()
-        local dummy = Instance.new(className)
-        local oldMethod
-        oldMethod = hookfunction(dummy[methodName], newcclosure(function(self, ...)
-            local args = {...}
-            local caller = checkcaller()
-            task.spawn(addLog, self, args, caller, typeLabel)
-            return oldMethod(self, ...)
-        end))
-    end)
-end
-
-hookRemoteMethod("RemoteEvent", "FireServer", "FS")
-hookRemoteMethod("RemoteFunction", "InvokeServer", "IS")
 
 -- ================= INTERACTIONS =================
 ControlBtn.MouseButton1Click:Connect(function() 
@@ -557,7 +543,6 @@ DelBtn.MouseButton1Click:Connect(function()
         -- Логика полной очистки для возможности повторного появления
         if targetData then
             -- Если удаляем лог, то также принудительно чистим этот путь из бан-фильтров
-            -- Это позволяет ивенту снова начать логироваться (внутренний бан-список очищается)
             if ManualBannedPaths[targetData.path] then
                 ManualBannedPaths[targetData.path] = nil
             end
@@ -657,9 +642,9 @@ task.spawn(function()
             updateRedListUI()
         end
 
-        -- Проверка основного лога
-        if #MainMemory == lastCount then continue end
-        lastCount = #MainMemory
+        -- Фикс заморозки: Проверяем версию памяти (memoryVersion), а не статическую длину таблицы логов
+        if memoryVersion == lastCount then continue end
+        lastCount = memoryVersion
         
         for _, v in pairs(Scroll:GetChildren()) do 
             if v:IsA("TextButton") then v:Destroy() end 
