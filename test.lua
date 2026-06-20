@@ -387,13 +387,12 @@ local function getSafePath(obj)
     return finalPath:gsub("%.%[", "[") 
 end
 
--- ================= ADD LOG =================
-local function addLog(rem, args, isSelf, typeLabel)
+-- ================= ADD LOG (ИСПРАВЛЕННЫЙ) =================
+local function addLog(rem, eventName, eventPath, args, isSelf, typeLabel)
     if typeLabel == "FS" and not spyFS then return end
     if typeLabel == "FC" and not spyFC then return end
     if typeLabel == "IS" and not spyIS then return end
     
-    local eventPath = getSafePath(rem)
     if not isSelf and ManualBannedPaths[eventPath] then return end
 
     local function parseValue(v, d)
@@ -404,7 +403,10 @@ local function addLog(rem, args, isSelf, typeLabel)
         elseif t == "table" then
             local isArray = true
             local count = 0
-            for k, val in pairs(v) do count = count + 1 if type(k) ~= "number" or k ~= count then isArray = false break end end
+            for k, val in pairs(v) do 
+                count = count + 1 
+                if type(k) ~= "number" or k ~= count then isArray = false break end 
+            end
             local res = "{"
             local i = 0
             for k, val in pairs(v) do 
@@ -422,13 +424,21 @@ local function addLog(rem, args, isSelf, typeLabel)
             local tn = typeof(v)
             if tn == "CFrame" then return "CFrame.new(" .. tostring(v) .. ")"
             elseif tn == "Vector3" then return "Vector3.new(" .. tostring(v) .. ")"
-            elseif tn == "Instance" then return getSafePath(v) end
+            elseif tn == "Instance" then 
+                -- Защищаем чтение пути аргумента-инстанса
+                local pSuccess, pPath = pcall(getSafePath, v)
+                return pSuccess and pPath or "game.UnknownInstance"
+            end
             return tostring(v)
         else return tostring(v) end
     end
 
+    -- Безопасно парсим аргументы через pcall, чтобы избежать silent crash
     local argList = {}
-    for _, v in ipairs(args) do argList[#argList + 1] = parseValue(v) end
+    for _, v in ipairs(args) do 
+        local pSuccess, pVal = pcall(parseValue, v)
+        argList[#argList + 1] = pSuccess and pVal or ("[" .. typeof(v) .. "]")
+    end
     local finalArgsStr = table.concat(argList, ", ")
     
     local alreadyExists = false
@@ -464,29 +474,36 @@ local function addLog(rem, args, isSelf, typeLabel)
         AntiSpamCooldowns[eventPath] = currentTime
     end
 
-    -- Добавление в память
+    -- Добавление в память (теперь используем заранее извлеченные строки)
     local newLog = { 
-        guid = generateGUID(), name = tostring(rem.Name), type = typeLabel, isSelf = isSelf, 
+        guid = generateGUID(), name = eventName, type = typeLabel, isSelf = isSelf, 
         fullText = logDetails, path = eventPath, argsStr = finalArgsStr, rawArgs = args 
     }
     table.insert(MainMemory, 1, newLog)
     if #MainMemory > 150 then table.remove(MainMemory, 151) end
 end
 
--- ================= ПЕРЕХВАТ (HOOKS) =================
+-- ================= ПЕРЕХВАТ (HOOKS ИСПРАВЛЕННЫЙ) =================
 local oldNamecall
 oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     local method = getnamecallmethod()
     local args = {...}
-    local isSelf = checkcaller() -- Проверяем, вызван ли скрипт эксплоитом/тобой
+    local isSelf = checkcaller() 
     
     local lowerMethod = method:lower()
-    if lowerMethod == "fireserver" then 
-        task.spawn(addLog, self, args, isSelf, "FS")
-    elseif lowerMethod == "fireclient" then 
-        task.spawn(addLog, self, args, isSelf, "FC")
-    elseif lowerMethod == "invokeserver" then 
-        task.spawn(addLog, self, args, isSelf, "IS") 
+    if lowerMethod == "fireserver" or lowerMethod == "fireclient" or lowerMethod == "invokeserver" then 
+        local typeLabel = (lowerMethod == "fireserver" and "FS") or (lowerMethod == "fireclient" and "FC") or "IS"
+        
+        -- Извлекаем Имя и Путь прямо здесь, пока мы в главном синхронном потоке namecall!
+        local eventName = "Unknown"
+        local eventPath = "game.Unknown"
+        pcall(function()
+            eventName = tostring(self.Name)
+            eventPath = getSafePath(self)
+        end)
+        
+        -- Передаем уже готовые строки в task.spawn
+        task.spawn(addLog, self, eventName, eventPath, args, isSelf, typeLabel)
     end
     print("хук перехвачен")
     return oldNamecall(self, ...)
