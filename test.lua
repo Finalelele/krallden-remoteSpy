@@ -476,18 +476,17 @@ end
 -- ================= ПЕРЕХВАТ (HOOKS) =================
 local oldNamecall
 oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-    local m = getnamecallmethod()
-    local a = {...}
-    local s = checkcaller()
+    local method = getnamecallmethod()
+    local args = {...}
+    local isSelf = checkcaller() -- Проверяем, вызван ли скрипт эксплоитом/тобой
     
-    -- Безопасное приведение к строке исключает вылеты скрипта из-за nil-значений
-    local lowerM = tostring(m):lower()
-    if lowerM == "fireserver" then 
-        task.spawn(addLog, self, a, s, "FS")
-    elseif lowerM == "fireclient" then 
-        task.spawn(addLog, self, a, s, "FC")
-    elseif lowerM == "invokeserver" then 
-        task.spawn(addLog, self, a, s, "IS") 
+    local lowerMethod = method:lower()
+    if lowerMethod == "fireserver" then 
+        task.spawn(addLog, self, args, isSelf, "FS")
+    elseif lowerMethod == "fireclient" then 
+        task.spawn(addLog, self, args, isSelf, "FC")
+    elseif lowerMethod == "invokeserver" then 
+        task.spawn(addLog, self, args, isSelf, "IS") 
     end
     
     return oldNamecall(self, ...)
@@ -629,13 +628,11 @@ MinBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ================= RENDER LOOP =================
-local lastTopGUID = nil -- Храним GUID последнего ивента, чтобы ловить обновления при неизменной длине таблицы
-
 task.spawn(function()
-    while task.wait(0.5) do
+    while task.wait(0.3) do
         if not ContentFrame or not ContentFrame.Visible then continue end
         
-        -- Проверка Бан-листа
+        -- Обновление Бан-листа
         local currentRedCount = 0
         for _ in pairs(ManualBannedPaths) do currentRedCount = currentRedCount + 1 end
         if currentRedCount ~= lastRedCount then
@@ -643,57 +640,51 @@ task.spawn(function()
             updateRedListUI()
         end
 
-        -- УЛУЧШЕННЫЙ ФИКС ЗАМОРОЗКИ: Проверяем не только длину, но и изменился ли верхний элемент (GUID)
-        local currentTop = MainMemory[1]
-        local currentTopGUID = currentTop and currentTop.guid or nil
-        
-        if #MainMemory == lastCount and currentTopGUID == lastTopGUID then 
-            continue 
-        end
-        
+        -- Проверка изменений в памяти
+        if #MainMemory == lastCount then continue end
         lastCount = #MainMemory
-        lastTopGUID = currentTopGUID
         
-        for _, v in pairs(Scroll:GetChildren()) do 
-            if v:IsA("TextButton") then v:Destroy() end 
+        -- Полная очистка старых кнопок перед перерисовкой
+        for _, v in ipairs(Scroll:GetChildren()) do 
+            if v:IsA("TextButton") then 
+                v:Destroy() 
+            end 
         end
         
+        -- Сортировка данных (сначала свои события [S], потом остальные)
         local sortedMemory = {}
-        for _, d in ipairs(MainMemory) do if d.isSelf then sortedMemory[#sortedMemory + 1] = d end end
-        for _, d in ipairs(MainMemory) do if not d.isSelf then sortedMemory[#sortedMemory + 1] = d end end
+        for _, d in ipairs(MainMemory) do if d.isSelf then table.insert(sortedMemory, d) end end
+        for _, d in ipairs(MainMemory) do if not d.isSelf then table.insert(sortedMemory, d) end end
         
+        -- Генерация новых кнопок в UI
         for i, d in ipairs(sortedMemory) do
             local b = Instance.new("TextButton")
             b.Size = UDim2.new(1, -6, 0, 30)
             b.LayoutOrder = i
-            print("кнопка создана")
-            
-            -- ФИКС ОТОБРАЖЕНИЯ: Берем только конечное имя ивента
-            local cleanName = d.name:match("[^%.%[%]]+$") or d.name
-            cleanName = cleanName:gsub('^"', ''):gsub('"$', ''):gsub('%]$', '')
-            
-            -- Формат: [Тип] [S] [Имя]
-            local display = string.format("[%s]%s [%s]", d.type, (d.isSelf and " [S]" or ""), cleanName)
-            b.Text = display
-            
-            if currentSelectionGUID == d.guid then
-                b.BackgroundColor3 = Color3.fromRGB(100, 50, 200)
-            else
-                if d.isSelf then
-                    b.BackgroundColor3 = Color3.fromRGB(45, 90, 45)
-                else
-                    b.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-                end
-            end
-            
+            b.Font = Enum.Font.SourceSansBold
+            b.TextSize = 12
             b.TextColor3 = Color3.new(1, 1, 1)
             b.BorderSizePixel = 0
             b.ClipsDescendants = true
-            b.Parent = Scroll
+            
+            -- Выделение конечного имени удаленного объекта
+            local cleanName = d.name:match("[^%.%[%]]+$") or d.name
+            cleanName = cleanName:gsub('^"', ''):gsub('"$', ''):gsub('%]$', '')
+            
+            b.Text = string.format("[%s]%s [%s]", d.type, (d.isSelf and " [S]" or ""), cleanName)
+            
+            -- Установка цвета в зависимости от состояния выделения и автора
+            if currentSelectionGUID == d.guid then
+                b.BackgroundColor3 = Color3.fromRGB(100, 50, 200)
+            else
+                b.BackgroundColor3 = d.isSelf and Color3.fromRGB(45, 90, 45) or Color3.fromRGB(40, 40, 45)
+            end
             
             b:SetAttribute("GUID", d.guid)
             b:SetAttribute("IsSelf", d.isSelf)
+            b.Parent = Scroll
             
+            -- Обработка клика по кнопке лога
             b.MouseButton1Click:Connect(function()
                 currentSelectionGUID = d.guid
                 Details.Text = getSortedDetails(d)
