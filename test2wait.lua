@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.8.6 - FIXED NAME DISPLAY & DEL LOGIC ]] --
+-- [[ KRALLDEN SPY v9.8.7 - FIXED NAME DISPLAY & DEL LOGIC ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -242,7 +242,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(0, 200, 1, 0)
 Title.BackgroundTransparency = 1
 Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.8.6"
+Title.Text = "KRALLDEN SPY v9.8.7"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 16
