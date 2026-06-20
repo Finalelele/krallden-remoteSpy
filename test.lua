@@ -63,7 +63,6 @@ local spyIS = false
 local sortEnabled = false
 local currentSelectionGUID = nil
 local lastCount = 0
-local memoryVersion = 0 -- Фикс зависания: трекер обновлений памяти логов
 local lastRedCount = 0 
 local isMin = false
 
@@ -370,7 +369,7 @@ local function getSafePath(obj)
             else
                 safeName = n
             end
-       
+            
             if p == "" then 
                 p = safeName 
             else 
@@ -472,7 +471,6 @@ local function addLog(rem, args, isSelf, typeLabel)
     }
     table.insert(MainMemory, 1, newLog)
     if #MainMemory > 150 then table.remove(MainMemory, 151) end
-    memoryVersion = memoryVersion + 1 -- Обновляем версию памяти при добавлении нового лога
 end
 
 -- ================= ПЕРЕХВАТ (HOOKS) =================
@@ -491,7 +489,7 @@ oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     elseif lowerM == "invokeserver" then 
         task.spawn(addLog, self, a, s, "IS") 
     end
-    print("хук перехвачен")
+    
     return oldNamecall(self, ...)
 end))
 
@@ -543,6 +541,7 @@ DelBtn.MouseButton1Click:Connect(function()
         -- Логика полной очистки для возможности повторного появления
         if targetData then
             -- Если удаляем лог, то также принудительно чистим этот путь из бан-фильтров
+            -- Это позволяет ивенту снова начать логироваться (внутренний бан-список очищается)
             if ManualBannedPaths[targetData.path] then
                 ManualBannedPaths[targetData.path] = nil
             end
@@ -630,6 +629,8 @@ MinBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ================= RENDER LOOP =================
+local lastTopGUID = nil -- Храним GUID последнего ивента, чтобы ловить обновления при неизменной длине таблицы
+
 task.spawn(function()
     while task.wait(0.5) do
         if not ContentFrame or not ContentFrame.Visible then continue end
@@ -642,9 +643,16 @@ task.spawn(function()
             updateRedListUI()
         end
 
-        -- Фикс заморозки: Проверяем версию памяти (memoryVersion), а не статическую длину таблицы логов
-        if memoryVersion == lastCount then continue end
-        lastCount = memoryVersion
+        -- УЛУЧШЕННЫЙ ФИКС ЗАМОРОЗКИ: Проверяем не только длину, но и изменился ли верхний элемент (GUID)
+        local currentTop = MainMemory[1]
+        local currentTopGUID = currentTop and currentTop.guid or nil
+        
+        if #MainMemory == lastCount and currentTopGUID == lastTopGUID then 
+            continue 
+        end
+        
+        lastCount = #MainMemory
+        lastTopGUID = currentTopGUID
         
         for _, v in pairs(Scroll:GetChildren()) do 
             if v:IsA("TextButton") then v:Destroy() end 
@@ -658,7 +666,6 @@ task.spawn(function()
             local b = Instance.new("TextButton")
             b.Size = UDim2.new(1, -6, 0, 30)
             b.LayoutOrder = i
-            print("кнопка создана")
             
             -- ФИКС ОТОБРАЖЕНИЯ: Берем только конечное имя ивента
             local cleanName = d.name:match("[^%.%[%]]+$") or d.name
