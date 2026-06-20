@@ -647,7 +647,6 @@ end)
 -- ================= RENDER LOOP =================
 task.spawn(function()
     while task.wait(0.3) do
-        print("render работает")
         if not ContentFrame or not ContentFrame.Visible then continue end
         
         -- Обновление Бан-листа
