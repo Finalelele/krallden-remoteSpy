@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.8.7 - FIXED NAME DISPLAY & DEL LOGIC ]] --
+-- [[ KRALLDEN SPY v9.8.6 - FIXED NAME DISPLAY & DEL LOGIC ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -242,7 +242,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(0, 200, 1, 0)
 Title.BackgroundTransparency = 1
 Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.8.7"
+Title.Text = "KRALLDEN SPY v9.8.6"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 16
@@ -473,56 +473,41 @@ local function addLog(rem, args, isSelf, typeLabel)
     if #MainMemory > 150 then table.remove(MainMemory, 151) end
 end
 
--- ================= ПЕРЕХВАТ (HOOKS) V3 (ULTIMATE) =================
-local namecall
-namecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-    local m = getnamecallmethod()
-    local a = {...}
-    local s = checkcaller()
-
-    -- 1. Ловим через Namecall
-    if m and typeof(self) == "Instance" then
-        local lowerM = tostring(m):lower()
-        local isEvent = self:IsA("RemoteEvent")
-        local isFunc = self:IsA("RemoteFunction")
-
-        if lowerM == "fireserver" and isEvent then 
-            coroutine.wrap(addLog)(self, a, s, "FS")
-        elseif lowerM == "fireclient" and isEvent then 
-            coroutine.wrap(addLog)(self, a, s, "FC")
-        elseif lowerM == "invokeserver" and isFunc then 
-            coroutine.wrap(addLog)(self, a, s, "IS") 
-        end
+-- ================= ПЕРЕХВАТ (HOOKS) =================
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+    local caller = checkcaller()
+    
+    local lowerM = tostring(method):lower()
+    if lowerM == "fireserver" then 
+        task.spawn(addLog, self, args, caller, "FS")
+    elseif lowerM == "fireclient" then 
+        task.spawn(addLog, self, args, caller, "FC")
+    elseif lowerM == "invokeserver" then 
+        task.spawn(addLog, self, args, caller, "IS") 
     end
     
-    return namecall(self, ...)
+    return oldNamecall(self, ...)
 end))
 
--- 2. Запасной план: Прямой перехват функций (Direct Hooking)
--- Спасает, если игра вызывает методы напрямую в обход Namecall
-local oldFireServer
-oldFireServer = hookfunction(Instance.new("RemoteEvent").FireServer, newcclosure(function(self, ...)
-    local a = {...}
-    local s = checkcaller()
-    
-    if typeof(self) == "Instance" and self:IsA("RemoteEvent") then
-        coroutine.wrap(addLog)(self, a, s, "FS")
-    end
-    
-    return oldFireServer(self, ...)
-end))
+-- 2. Прямой хук на функции (ловит кэшированные вызовы вроде: local f = Remote.FireServer; f(Remote))
+local function hookRemoteMethod(className, methodName, typeLabel)
+    local success, err = pcall(function()
+        local dummy = Instance.new(className)
+        local oldMethod
+        oldMethod = hookfunction(dummy[methodName], newcclosure(function(self, ...)
+            local args = {...}
+            local caller = checkcaller()
+            task.spawn(addLog, self, args, caller, typeLabel)
+            return oldMethod(self, ...)
+        end))
+    end)
+end
 
-local oldInvokeServer
-oldInvokeServer = hookfunction(Instance.new("RemoteFunction").InvokeServer, newcclosure(function(self, ...)
-    local a = {...}
-    local s = checkcaller()
-    
-    if typeof(self) == "Instance" and self:IsA("RemoteFunction") then
-        coroutine.wrap(addLog)(self, a, s, "IS")
-    end
-    
-    return oldInvokeServer(self, ...)
-end))
+hookRemoteMethod("RemoteEvent", "FireServer", "FS")
+hookRemoteMethod("RemoteFunction", "InvokeServer", "IS")
 
 -- ================= INTERACTIONS =================
 ControlBtn.MouseButton1Click:Connect(function() 
