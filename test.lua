@@ -479,7 +479,14 @@ local function addLog(rem, eventName, eventPath, args, isSelf, typeLabel)
         guid = generateGUID(), name = eventName, type = typeLabel, isSelf = isSelf, 
         fullText = logDetails, path = eventPath, argsStr = finalArgsStr, rawArgs = args 
     }
+    print("--- АДЛОГ РАБОТАЕТ ---")
+    print("Пытаюсь добавить в память эвент:", eventName)
+    print("Текущий размер памяти ДО добавления:", #MainMemory)
+    
     table.insert(MainMemory, 1, newLog)
+    
+    print("память заполнена! Новый размер:", #MainMemory)
+    
     if #MainMemory > 150 then table.remove(MainMemory, 151) end
 end
 
