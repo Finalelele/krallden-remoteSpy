@@ -487,48 +487,65 @@ local function addLog(rem, eventName, eventPath, args, isSelf, typeLabel)
     if #MainMemory > 150 then table.remove(MainMemory, 151) end
 end
 
--- ================= ПЕРЕХВАТ (HOOKS ИСПРАВЛЕННЫЙ) =================
--- ================= НОВЫЙ СВЕРХНАДЁЖНЫЙ ПЕРЕХВАТ (HOOKFUNCTION) =================
+-- ================= ГИБРИДНЫЙ СВЕРХУСТОЙЧИВЫЙ ПЕРЕХВАТ (NC + IDX) =================
+-- Этот метод защищает от кэширования и обходит баги хуков встроенных функций
 
--- 1. Перехват FireServer (Для RemoteEvent)
-local oldFireServer
-oldFireServer = hookfunction(Instance.new("RemoteEvent").FireServer, newcclosure(function(self, ...)
+-- 1. Перехват через Namecall (для классических прямых вызовов)
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+    local method = getnamecallmethod()
     local args = {...}
     local isSelf = checkcaller() 
     
-    local eventName = "Unknown"
-    local eventPath = "game.Unknown"
-    pcall(function()
-        eventName = tostring(self.Name)
-        eventPath = getSafePath(self)
-    end)
-    
-    print("⚡ [ХУК FS] Отправлен FireServer | Путь:", eventPath)
-    task.spawn(addLog, self, eventName, eventPath, args, isSelf, "FS")
-    
-    return oldFireServer(self, ...)
+    local lowerMethod = tostring(method):lower()
+    if lowerMethod == "fireserver" or lowerMethod == "invokeserver" then 
+        local typeLabel = (lowerMethod == "fireserver") and "FS" or "IS"
+        
+        local eventName = "Unknown"
+        local eventPath = "game.Unknown"
+        pcall(function()
+            eventName = tostring(self.Name)
+            eventPath = getSafePath(self)
+        end)
+        
+        print("⚡ [ХУК NC] Перехвачен быстрый вызов:", method, "| Путь:", eventPath)
+        task.spawn(addLog, self, eventName, eventPath, args, isSelf, typeLabel)
+    end
+    return oldNamecall(self, ...)
 end))
 
--- 2. Перехват InvokeServer (Для RemoteFunction)
-local oldInvokeServer
-oldInvokeServer = hookfunction(Instance.new("RemoteFunction").InvokeServer, newcclosure(function(self, ...)
-    local args = {...}
-    local isSelf = checkcaller() 
-    
-    local eventName = "Unknown"
-    local eventPath = "game.Unknown"
-    pcall(function()
-        eventName = tostring(self.Name)
-        eventPath = getSafePath(self)
-    end)
-    
-    print("⚡ [ХУК IS] Отправлен InvokeServer | Путь:", eventPath)
-    task.spawn(addLog, self, eventName, eventPath, args, isSelf, "IS")
-    
-    return oldInvokeServer(self, ...)
+-- 2. Перехват через __index (Ловит кэширование и обходит защиту)
+local oldIndex
+oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, key)
+    if typeof(self) == "Instance" and not checkcaller() then
+        local stringKey = tostring(key)
+        if stringKey == "FireServer" or stringKey == "InvokeServer" then
+            local typeLabel = (stringKey == "FireServer") and "FS" or "IS"
+            
+            -- Возвращаем кастомную функцию-прокси для скриптов игры
+            return newcclosure(function(remote, ...)
+                local args = {...}
+                local isSelf = checkcaller()
+                
+                local eventName = "Unknown"
+                local eventPath = "game.Unknown"
+                pcall(function()
+                    eventName = tostring(remote.Name)
+                    eventPath = getSafePath(remote)
+                end)
+                
+                print("⚡ [ХУК IDX] Перехвачен вызов через индекс:", stringKey, "| Путь:", eventPath)
+                task.spawn(addLog, remote, eventName, eventPath, args, isSelf, typeLabel)
+                
+                -- Выполняем оригинальное действие движка
+                return oldIndex(remote, stringKey)(remote, ...)
+            end)
+        end
+    end
+    return oldIndex(self, key)
 end))
 
-print("=== СЕТЕВЫЕ ХУКИ РЕО组织ОВАНЫ НА HOOKFUNCTION ===")
+print("=== АКТИВИРОВАН ДВОЙНОЙ СЕТЕВОЙ ФИЛЬТР (NC + IDX) ===")
 
 -- ================= INTERACTIONS =================
 ControlBtn.MouseButton1Click:Connect(function() 
