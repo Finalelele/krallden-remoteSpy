@@ -491,7 +491,7 @@ oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     elseif lowerM == "invokeserver" then 
         task.spawn(addLog, self, a, s, "IS") 
     end
-    
+    print("хук перехвачен")
     return oldNamecall(self, ...)
 end))
 
@@ -658,6 +658,7 @@ task.spawn(function()
             local b = Instance.new("TextButton")
             b.Size = UDim2.new(1, -6, 0, 30)
             b.LayoutOrder = i
+            print("кнопка создана")
             
             -- ФИКС ОТОБРАЖЕНИЯ: Берем только конечное имя ивента
             local cleanName = d.name:match("[^%.%[%]]+$") or d.name
