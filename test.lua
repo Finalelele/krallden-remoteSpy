@@ -70,7 +70,7 @@ local isMin = false
 local currentKeybind = nil
 local isBinding = false
 
--- Продвинутая UTF-8 очистка строк (Защита от хитрой обфускации без поломки кириллицы)
+-- Продвинутая UTF-8 очистка строк (ЗАЩИЩЕНА ОТ БАГОВ ИНЖЕКТОРА ЧЕРЕЗ PCALL)
 local function sanitizeString(str)
     if type(str) ~= "string" then return tostring(str) end
     
@@ -79,9 +79,9 @@ local function sanitizeString(str)
     local len = #str
     
     while i <= len do
-        local codePoint, nextPos = utf8.decode(str, i)
-        if codePoint then
-            -- Проверяем на скрытые ломающие символы (управляющие ASCII, bidi-маркеры, нулевые байты и невидимые пробелы)
+        local success, codePoint, nextPos = pcall(utf8.decode, str, i)
+        
+        if success and codePoint and nextPos then
             local isControl = (codePoint < 32 and codePoint ~= 10 and codePoint ~= 9) 
                 or (codePoint >= 127 and codePoint <= 159)
                 or (codePoint >= 0x200B and codePoint <= 0x200F) 
@@ -90,15 +90,20 @@ local function sanitizeString(str)
                 
             if isControl then
                 for j = i, nextPos - 1 do
-                    table.insert(result, string.format("\\x%02X", string.byte(str, j)))
+                    local b = string.byte(str, j)
+                    if b then
+                        table.insert(result, string.format("\\x%02X", b))
+                    end
                 end
             else
                 table.insert(result, string.sub(str, i, nextPos - 1))
             end
             i = nextPos
         else
-            -- Бинарный мусор вне UTF-8 лимитов переводим в безопасный HEX
-            table.insert(result, string.format("\\x%02X", string.byte(str, i)))
+            local b = string.byte(str, i)
+            if b then
+                table.insert(result, string.format("\\x%02X", b))
+            end
             i = i + 1
         end
     end
