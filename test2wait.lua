@@ -1,8 +1,9 @@
--- [[ KRALLDEN SPY v9.8.7 - FIXED NAME DISPLAY & DEL LOGIC ]] --
+-- [[ KRALLDEN SPY v9.8.8 - FIXED UTF-8 SANITIZER & KEYBIND MINIMIZE ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 local TextService = game:GetService("TextService")
+local UserInputService = game:GetService("UserInputService")
 
 -- Очистка старых версий
 if playerGui:FindFirstChild("KralldenSpyUI") then 
@@ -65,6 +66,45 @@ local currentSelectionGUID = nil
 local lastCount = 0
 local lastRedCount = 0 
 local isMin = false
+
+local currentKeybind = nil
+local isBinding = false
+
+-- Продвинутая UTF-8 очистка строк (Защита от хитрой обфускации без поломки кириллицы)
+local function sanitizeString(str)
+    if type(str) ~= "string" then return tostring(str) end
+    
+    local result = {}
+    local i = 1
+    local len = #str
+    
+    while i <= len do
+        local codePoint, nextPos = utf8.decode(str, i)
+        if codePoint then
+            -- Проверяем на скрытые ломающие символы (управляющие ASCII, bidi-маркеры, нулевые байты и невидимые пробелы)
+            local isControl = (codePoint < 32 and codePoint ~= 10 and codePoint ~= 9) 
+                or (codePoint >= 127 and codePoint <= 159)
+                or (codePoint >= 0x200B and codePoint <= 0x200F) 
+                or (codePoint >= 0x202A and codePoint <= 0x202E) 
+                or (codePoint >= 0x2060 and codePoint <= 0x206F)
+                
+            if isControl then
+                for j = i, nextPos - 1 do
+                    table.insert(result, string.format("\\x%02X", string.byte(str, j)))
+                end
+            else
+                table.insert(result, string.sub(str, i, nextPos - 1))
+            end
+            i = nextPos
+        else
+            -- Бинарный мусор вне UTF-8 лимитов переводим в безопасный HEX
+            table.insert(result, string.format("\\x%02X", string.byte(str, i)))
+            i = i + 1
+        end
+    end
+    
+    return table.concat(result)
+end
 
 local function generateGUID() 
     return tostring(tick()) .. "-" .. tostring(math.random(1, 100000)) 
@@ -153,7 +193,7 @@ local function formatTableVisual(val, indent)
                 break 
             end 
         end
-        
+         
         for k, v in pairs(val) do
             local keyStr = ""
             if not isArray then
@@ -164,7 +204,7 @@ local function formatTableVisual(val, indent)
                 end
             end
             res = res .. tab .. "    " .. keyStr .. formatTableVisual(v, indent + 1) .. ",\n"
-        end
+       end
         return res .. tab .. "}"
     elseif t == "string" then 
         return '"' .. val .. '"'
@@ -215,7 +255,7 @@ local function updateRedListUI()
         
         local displayPath = path:match("[^%.%[%]]+$") or path
         displayPath = displayPath:gsub('^"', ''):gsub('"$', ''):gsub('%]$', '')
-        b.Text = " [X] " .. displayPath
+        b.Text = " [X] " .. sanitizeString(displayPath)
         b.Parent = RedListScroll
         
         b:SetAttribute("GUID", data.guid)
@@ -223,7 +263,7 @@ local function updateRedListUI()
         
         b.MouseButton1Click:Connect(function() 
             currentSelectionGUID = data.guid
-            Details.Text = getSortedDetails(data)
+            Details.Text = sanitizeString(getSortedDetails(data))
             updateDetailsCanvas()
             refreshSelectionColors()
         end)
@@ -239,16 +279,41 @@ Header.BorderSizePixel = 0
 Header.Parent = Main
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(0, 200, 1, 0)
+Title.Size = UDim2.new(0, 140, 1, 0)
 Title.BackgroundTransparency = 1
-Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.8.7"
+Title.Position = UDim2.new(0, 12, 0, 0)
+Title.Text = "KRALLDEN SPY v9.8.8"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.SourceSansBold
-Title.TextSize = 16
+Title.TextSize = 14
 Title.ZIndex = 11
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = Header
+
+-- КЕЙБИНД ЭЛЕМЕНТЫ (Смещены сильно левее к тексту)
+local KeybindBtn = Instance.new("TextButton")
+KeybindBtn.Size = UDim2.new(0, 65, 0, 22)
+KeybindBtn.Position = UDim2.new(0, 150, 0.5, -11)
+KeybindBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+KeybindBtn.Text = "NONE"
+KeybindBtn.TextColor3 = Color3.fromRGB(255, 200, 100)
+KeybindBtn.Font = Enum.Font.SourceSansBold
+KeybindBtn.TextSize = 11
+KeybindBtn.BorderSizePixel = 0
+KeybindBtn.ZIndex = 12
+KeybindBtn.Parent = Header
+
+local ClearKeybindBtn = Instance.new("TextButton")
+ClearKeybindBtn.Size = UDim2.new(0, 22, 0, 22)
+ClearKeybindBtn.Position = UDim2.new(0, 220, 0.5, -11)
+ClearKeybindBtn.BackgroundColor3 = Color3.fromRGB(35, 75, 150) -- Синий ресет
+ClearKeybindBtn.Text = "X"
+ClearKeybindBtn.TextColor3 = Color3.new(1, 1, 1)
+ClearKeybindBtn.Font = Enum.Font.SourceSansBold
+ClearKeybindBtn.TextSize = 11
+ClearKeybindBtn.BorderSizePixel = 0
+ClearKeybindBtn.ZIndex = 12
+ClearKeybindBtn.Parent = Header
 
 local MinBtn = Instance.new("TextButton")
 MinBtn.Size = UDim2.new(0, 45, 0, 35)
@@ -356,6 +421,75 @@ local RedListLayout = Instance.new("UIListLayout")
 RedListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 RedListLayout.Parent = RedListScroll
 
+-- Логика Сворачивания / Разворачивания (Исправлено скрытие биндов)
+local function toggleMinimize()
+    isMin = not isMin
+    local curX = Main.AbsolutePosition.X + Main.AbsoluteSize.X
+    local curY = Main.AbsolutePosition.Y
+    
+    if isMin then
+        ContentFrame.Visible = false
+        ControlBtn.Visible = false
+        SelfBtn.Visible = false
+        AntiSpamBtn.Visible = false
+        BlockBtn.Visible = false
+        DelBtn.Visible = false
+        KeybindBtn.Visible = false       -- Скрываем кнопку бинда
+        ClearKeybindBtn.Visible = false  -- Скрываем кнопку очистки
+        
+        Main:TweenSizeAndPosition(UDim2.new(0, 250, 0, 35), UDim2.new(0, curX - 250, 0, curY), "Out", "Quad", 0.15, true)
+        MinBtn.Text = "+"
+    else
+        Main:TweenSizeAndPosition(UDim2.new(0, 820, 0, 440), UDim2.new(0, curX - 820, 0, curY), "Out", "Quad", 0.15, true, function()
+            ContentFrame.Visible = true
+            ControlBtn.Visible = true
+            SelfBtn.Visible = true
+            DelBtn.Visible = true
+            KeybindBtn.Visible = true       -- Возвращаем кнопку бинда
+            ClearKeybindBtn.Visible = true  -- Возвращаем кнопку очистки
+            if not controlMode then
+                AntiSpamBtn.Visible = true
+                BlockBtn.Visible = true
+            end
+        end)
+        MinBtn.Text = "_"
+        lastCount = -1
+    end
+end
+
+MinBtn.MouseButton1Click:Connect(toggleMinimize)
+
+-- Настройка функционала КЕЙБИНДА
+KeybindBtn.MouseButton1Click:Connect(function()
+    isBinding = true
+    KeybindBtn.Text = "..."
+    KeybindBtn.BackgroundColor3 = Color3.fromRGB(130, 85, 40)
+end)
+
+ClearKeybindBtn.MouseButton1Click:Connect(function()
+    currentKeybind = nil
+    isBinding = false
+    KeybindBtn.Text = "NONE"
+    KeybindBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+end)
+
+UserInputService.InputBegan:Connect(function(input, processed)
+    if isBinding then
+        if input.UserInputType == Enum.UserInputType.Keyboard then
+            currentKeybind = input.KeyCode
+            isBinding = false
+            KeybindBtn.Text = currentKeybind.Name:upper()
+            KeybindBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+        end
+    else
+        if currentKeybind and input.KeyCode == currentKeybind then
+            if not UserInputService:GetFocusedTextBox() then
+                toggleMinimize()
+            end
+        end
+    end
+end)
+
 -- ================= PATH LOGIC =================
 local function getSafePath(obj)
     local p = ""
@@ -387,13 +521,13 @@ local function getSafePath(obj)
     return finalPath:gsub("%.%[", "[") 
 end
 
--- ================= ADD LOG (ИСПРАВЛЕННЫЙ) =================
-local function addLog(rem, eventName, eventPath, args, isSelf, typeLabel)
-    print("--> [addLog] Функция вызвана для:", eventName, "Тип:", typeLabel)
+-- ================= ADD LOG =================
+local function addLog(rem, args, isSelf, typeLabel)
     if typeLabel == "FS" and not spyFS then return end
     if typeLabel == "FC" and not spyFC then return end
     if typeLabel == "IS" and not spyIS then return end
     
+    local eventPath = getSafePath(rem)
     if not isSelf and ManualBannedPaths[eventPath] then return end
 
     local function parseValue(v, d)
@@ -404,10 +538,7 @@ local function addLog(rem, eventName, eventPath, args, isSelf, typeLabel)
         elseif t == "table" then
             local isArray = true
             local count = 0
-            for k, val in pairs(v) do 
-                count = count + 1 
-                if type(k) ~= "number" or k ~= count then isArray = false break end 
-            end
+            for k, val in pairs(v) do count = count + 1 if type(k) ~= "number" or k ~= count then isArray = false break end end
             local res = "{"
             local i = 0
             for k, val in pairs(v) do 
@@ -425,21 +556,13 @@ local function addLog(rem, eventName, eventPath, args, isSelf, typeLabel)
             local tn = typeof(v)
             if tn == "CFrame" then return "CFrame.new(" .. tostring(v) .. ")"
             elseif tn == "Vector3" then return "Vector3.new(" .. tostring(v) .. ")"
-            elseif tn == "Instance" then 
-                -- Защищаем чтение пути аргумента-инстанса
-                local pSuccess, pPath = pcall(getSafePath, v)
-                return pSuccess and pPath or "game.UnknownInstance"
-            end
+            elseif tn == "Instance" then return getSafePath(v) end
             return tostring(v)
-        else return tostring(v) end
+       else return tostring(v) end
     end
 
-    -- Безопасно парсим аргументы через pcall, чтобы избежать silent crash
     local argList = {}
-    for _, v in ipairs(args) do 
-        local pSuccess, pVal = pcall(parseValue, v)
-        argList[#argList + 1] = pSuccess and pVal or ("[" .. typeof(v) .. "]")
-    end
+    for _, v in ipairs(args) do argList[#argList + 1] = parseValue(v) end
     local finalArgsStr = table.concat(argList, ", ")
     
     local alreadyExists = false
@@ -471,81 +594,69 @@ local function addLog(rem, eventName, eventPath, args, isSelf, typeLabel)
                 lastCount = -1 
                 return 
             end
-        else AntiSpamCounts[eventPath] = 0 end
+         else AntiSpamCounts[eventPath] = 0 end
         AntiSpamCooldowns[eventPath] = currentTime
     end
 
-    -- Добавление в память (теперь используем заранее извлеченные строки)
+    -- Добавление в память
     local newLog = { 
-        guid = generateGUID(), name = eventName, type = typeLabel, isSelf = isSelf, 
+        guid = generateGUID(), name = tostring(rem.Name), type = typeLabel, isSelf = isSelf, 
         fullText = logDetails, path = eventPath, argsStr = finalArgsStr, rawArgs = args 
     }
-    
     table.insert(MainMemory, 1, newLog)
-    print("+++ [УСПЕХ] Добавлено в память! Текущий размер:", #MainMemory)
-    
     if #MainMemory > 150 then table.remove(MainMemory, 151) end
 end
 
--- ================= ГИБРИДНЫЙ СВЕРХУСТОЙЧИВЫЙ ПЕРЕХВАТ (NC + IDX) =================
--- Этот метод защищает от кэширования и обходит баги хуков встроенных функций
-
--- 1. Перехват через Namecall (для классических прямых вызовов)
+-- ================= ПЕРЕХВАТ (HOOKS) =================
 local oldNamecall
+local oldIndex
+
+local function processEvent(self, method, args, isSelf)
+    if not self or typeof(self) ~= "Instance" then return end
+    
+    local lowerM = method:lower()
+    if lowerM == "fireserver" and self:IsA("RemoteEvent") then
+        task.spawn(addLog, self, args, isSelf, "FS")
+    elseif lowerM == "fireclient" and self:IsA("RemoteEvent") then
+        task.spawn(addLog, self, args, isSelf, "FC")
+    elseif lowerM == "invokeserver" and self:IsA("RemoteFunction") then
+        task.spawn(addLog, self, args, isSelf, "IS")
+    end
+end
+
 oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     local method = getnamecallmethod()
-    local args = {...}
-    local isSelf = checkcaller() 
+    local isSelf = checkcaller()
     
-    local lowerMethod = tostring(method):lower()
-    if lowerMethod == "fireserver" or lowerMethod == "invokeserver" then 
-        local typeLabel = (lowerMethod == "fireserver") and "FS" or "IS"
+    local args = {...}
+    task.spawn(function()
+        processEvent(self, method, args, isSelf)
+    end)
         
-        local eventName = "Unknown"
-        local eventPath = "game.Unknown"
-        pcall(function()
-            eventName = tostring(self.Name)
-            eventPath = getSafePath(self)
-        end)
-        
-        print("⚡ [ХУК NC] Перехвачен быстрый вызов:", method, "| Путь:", eventPath)
-        task.spawn(addLog, self, eventName, eventPath, args, isSelf, typeLabel)
-    end
     return oldNamecall(self, ...)
 end))
 
--- 2. Перехват через __index (Ловит кэширование и обходит защиту)
-local oldIndex
 oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, key)
-    if typeof(self) == "Instance" and not checkcaller() then
-        local stringKey = tostring(key)
-        if stringKey == "FireServer" or stringKey == "InvokeServer" then
-            local typeLabel = (stringKey == "FireServer") and "FS" or "IS"
-            
-            -- Возвращаем кастомную функцию-прокси для скриптов игры
-            return newcclosure(function(remote, ...)
-                local args = {...}
+    local originalResult = oldIndex(self, key)
+    
+    if typeof(self) == "Instance" and type(key) == "string" then
+        local lowerKey = key:lower()
+        if lowerKey == "fireserver" or lowerKey == "fireclient" or lowerKey == "invokeserver" then
+            return newcclosure(function(instanceSelf, ...)
                 local isSelf = checkcaller()
                 
-                local eventName = "Unknown"
-                local eventPath = "game.Unknown"
-                pcall(function()
-                    eventName = tostring(remote.Name)
-                    eventPath = getSafePath(remote)
+                local args = {...}
+                task.spawn(function()
+                    processEvent(instanceSelf, key, args, isSelf)
                 end)
                 
-                print("⚡ [ХУК IDX] Перехвачен вызов через индекс:", stringKey, "| Путь:", eventPath)
-                task.spawn(addLog, remote, eventName, eventPath, args, isSelf, typeLabel)
-                
-                -- Выполняем оригинальное действие движка
-                return oldIndex(remote, stringKey)(remote, ...)
-            end)
+                return originalResult(instanceSelf, ...)
+             end)
         end
     end
-    return oldIndex(self, key)
+    
+    return originalResult
 end))
-
-print("=== АКТИВИРОВАН ДВОЙНОЙ СЕТЕВОЙ ФИЛЬТР (NC + IDX) ===")
 
 -- ================= INTERACTIONS =================
 ControlBtn.MouseButton1Click:Connect(function() 
@@ -564,43 +675,36 @@ ControlBtn.MouseButton1Click:Connect(function()
     lastCount = -1 
 end)
 
--- УЛУЧШЕННАЯ КНОПКА УДАЛЕНИЯ (DEL BTN)
 DelBtn.MouseButton1Click:Connect(function()
     if currentSelectionGUID then
         local targetData = nil
         local foundInBanList = false
         
-        -- 1. Сначала ищем в Бан-листе
         for path, data in pairs(ManualBannedPaths) do
             if data.guid == currentSelectionGUID then 
                 targetData = {path = path, guid = data.guid}
                 foundInBanList = true
                 break 
             end
-        end
+         end
         
-        -- 2. Если в бан листе нет, ищем в основном логе
         if not foundInBanList then
             local nM = {}
             for _, m in ipairs(MainMemory) do 
                 if m.guid == currentSelectionGUID then 
-                    targetData = m -- Запоминаем данные удаляемого ивента
+                     targetData = m 
                 else 
                     nM[#nM + 1] = m 
                 end 
             end
-            if targetData then MainMemory = nM end
+             if targetData then MainMemory = nM end
         end
         
-        -- Логика полной очистки для возможности повторного появления
         if targetData then
-            -- Если удаляем лог, то также принудительно чистим этот путь из бан-фильтров
-            -- Это позволяет ивенту снова начать логироваться (внутренний бан-список очищается)
-            if ManualBannedPaths[targetData.path] then
+             if ManualBannedPaths[targetData.path] then
                 ManualBannedPaths[targetData.path] = nil
             end
             
-            -- Очищаем кулдауны спама для этого пути
             AntiSpamCooldowns[targetData.path] = 0
             AntiSpamCounts[targetData.path] = 0
 
@@ -622,7 +726,7 @@ BlockBtn.MouseButton1Click:Connect(function()
     if currentSelectionGUID then
         for i, d in ipairs(MainMemory) do
             if d.guid == currentSelectionGUID and not d.isSelf then
-                ManualBannedPaths[d.path] = {
+                 ManualBannedPaths[d.path] = {
                     guid = d.guid, 
                     prefix = "MANUAL BANNED:\n\n", 
                     fullText = d.fullText, 
@@ -631,7 +735,7 @@ BlockBtn.MouseButton1Click:Connect(function()
                     path = d.path, 
                     argsStr = d.argsStr
                 }
-                
+                 
                 local nM = {}
                 for _, m in ipairs(MainMemory) do 
                     if not (m.path == d.path and not m.isSelf) then 
@@ -641,109 +745,71 @@ BlockBtn.MouseButton1Click:Connect(function()
                 
                 MainMemory = nM
                 lastCount = -1
-                currentSelectionGUID = nil
+                 currentSelectionGUID = nil
                 Details.Text = "Banned."
                 updateDetailsCanvas()
                 feedback(BlockBtn, "BANNED")
                 break
             end
         end
-    end
-end)
-
-MinBtn.MouseButton1Click:Connect(function()
-    isMin = not isMin
-    local curX = Main.AbsolutePosition.X + Main.AbsoluteSize.X
-    local curY = Main.AbsolutePosition.Y
-    
-    if isMin then
-        ContentFrame.Visible = false
-        ControlBtn.Visible = false
-        SelfBtn.Visible = false
-        AntiSpamBtn.Visible = false
-        BlockBtn.Visible = false
-        DelBtn.Visible = false
-        
-        Main:TweenSizeAndPosition(UDim2.new(0, 250, 0, 35), UDim2.new(0, curX - 250, 0, curY), "Out", "Quad", 0.15, true)
-        MinBtn.Text = "+"
-    else
-        Main:TweenSizeAndPosition(UDim2.new(0, 820, 0, 440), UDim2.new(0, curX - 820, 0, curY), "Out", "Quad", 0.15, true, function()
-            ContentFrame.Visible = true
-            ControlBtn.Visible = true
-            SelfBtn.Visible = true
-            DelBtn.Visible = true
-            if not controlMode then
-                AntiSpamBtn.Visible = true
-                BlockBtn.Visible = true
-            end
-        end)
-        MinBtn.Text = "_"
-        lastCount = -1
-    end
+     end
 end)
 
 -- ================= RENDER LOOP =================
 task.spawn(function()
-    while task.wait(0.3) do
+    while task.wait(0.5) do
         if not ContentFrame or not ContentFrame.Visible then continue end
         
-        -- Обновление Бан-листа
         local currentRedCount = 0
         for _ in pairs(ManualBannedPaths) do currentRedCount = currentRedCount + 1 end
         if currentRedCount ~= lastRedCount then
-            lastRedCount = currentRedCount
+             lastRedCount = currentRedCount
             updateRedListUI()
         end
 
-        -- Проверка изменений в памяти
         if #MainMemory == lastCount then continue end
         lastCount = #MainMemory
         
-        -- Полная очистка старых кнопок перед перерисовкой
-        for _, v in ipairs(Scroll:GetChildren()) do 
-            if v:IsA("TextButton") then 
-                v:Destroy() 
-            end 
+        for _, v in pairs(Scroll:GetChildren()) do 
+            if v:IsA("TextButton") then v:Destroy() end 
         end
         
-        -- Сортировка данных (сначала свои события [S], потом остальные)
         local sortedMemory = {}
-        for _, d in ipairs(MainMemory) do if d.isSelf then table.insert(sortedMemory, d) end end
-        for _, d in ipairs(MainMemory) do if not d.isSelf then table.insert(sortedMemory, d) end end
+        for _, d in ipairs(MainMemory) do if d.isSelf then sortedMemory[#sortedMemory + 1] = d end end
+        for _, d in ipairs(MainMemory) do if not d.isSelf then sortedMemory[#sortedMemory + 1] = d end end
         
-        -- Генерация новых кнопок в UI
         for i, d in ipairs(sortedMemory) do
-            print("кнопка создана")
-            local b = Instance.new("TextButton")
+             local b = Instance.new("TextButton")
             b.Size = UDim2.new(1, -6, 0, 30)
             b.LayoutOrder = i
-            b.Font = Enum.Font.SourceSansBold
-            b.TextSize = 12
-            b.TextColor3 = Color3.new(1, 1, 1)
-            b.BorderSizePixel = 0
-            b.ClipsDescendants = true
             
-            -- Выделение конечного имени удаленного объекта
             local cleanName = d.name:match("[^%.%[%]]+$") or d.name
             cleanName = cleanName:gsub('^"', ''):gsub('"$', ''):gsub('%]$', '')
             
-            b.Text = string.format("[%s]%s [%s]", d.type, (d.isSelf and " [S]" or ""), cleanName)
+            local display = string.format("[%s]%s [%s]", d.type, (d.isSelf and " [S]" or ""), sanitizeString(cleanName))
+            b.Text = display
             
-            -- Установка цвета в зависимости от состояния выделения и автора
             if currentSelectionGUID == d.guid then
                 b.BackgroundColor3 = Color3.fromRGB(100, 50, 200)
             else
-                b.BackgroundColor3 = d.isSelf and Color3.fromRGB(45, 90, 45) or Color3.fromRGB(40, 40, 45)
+                if d.isSelf then
+                    b.BackgroundColor3 = Color3.fromRGB(45, 90, 45)
+                else
+                     b.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+                end
             end
+            
+            b.TextColor3 = Color3.new(1, 1, 1)
+            b.BorderSizePixel = 0
+            b.ClipsDescendants = true
+            b.Parent = Scroll
             
             b:SetAttribute("GUID", d.guid)
             b:SetAttribute("IsSelf", d.isSelf)
-            b.Parent = Scroll
             
-            -- Обработка клика по кнопке лога
             b.MouseButton1Click:Connect(function()
                 currentSelectionGUID = d.guid
-                Details.Text = getSortedDetails(d)
+                 Details.Text = sanitizeString(getSortedDetails(d))
                 updateDetailsCanvas()
                 refreshSelectionColors()
             end)
@@ -772,7 +838,7 @@ CopyArgsBtn.MouseButton1Click:Connect(function()
     if a then 
         setclipboard(a) 
         feedback(CopyArgsBtn, "COPIED!")
-    end
+     end
 end)
 
 local SortBtn = createBotBtn("SORT: OFF", UDim2.new(0, 305, 0.68, 0), UDim2.new(0, 120, 0, 58), Color3.fromRGB(80, 80, 85))
@@ -784,11 +850,11 @@ SortBtn.MouseButton1Click:Connect(function()
     if currentSelectionGUID then
         local foundData = nil
         for _, m in pairs(MainMemory) do if m.guid == currentSelectionGUID then foundData = m break end end
-        if not foundData then
+         if not foundData then
             for _, d in pairs(ManualBannedPaths) do if d.guid == currentSelectionGUID then foundData = d break end end
         end
         if foundData then
-            Details.Text = getSortedDetails(foundData)
+            Details.Text = sanitizeString(getSortedDetails(foundData))
             updateDetailsCanvas()
         end
     end
@@ -865,7 +931,7 @@ local function createTypeBtn(text, pos, state, color, varName)
         elseif varName == "IS" then spyIS = not spyIS end
 
         local currentState = (varName == "FS" and spyFS) or (varName == "FC" and spyFC) or (varName == "IS" and spyIS)
-        b.Text = varName .. " SPY: " .. (currentState and "ON" or "OFF")
+         b.Text = varName .. " SPY: " .. (currentState and "ON" or "OFF")
         b.BackgroundColor3 = currentState and color or Color3.fromRGB(40, 40, 45)
     end)
 end
