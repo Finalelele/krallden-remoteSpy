@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.8.7 - FIXED NAME DISPLAY & KEYBIND SYSTEM ]] --
+-- [[ KRALLDEN SPY v9.8.8 - FIXED UTF-8 SANITIZER & KEYBIND MINIMIZE ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -70,22 +70,40 @@ local isMin = false
 local currentKeybind = nil
 local isBinding = false
 
--- Функция очистки ломающих UI строк (Защита от обфускации бинарными данными)
+-- Продвинутая UTF-8 очистка строк (Защита от хитрой обфускации без поломки кириллицы)
 local function sanitizeString(str)
     if type(str) ~= "string" then return tostring(str) end
-    local result = ""
-    for i = 1, #str do
-        local c = string.sub(str, i, i)
-        local b = string.byte(c)
-        if b == 10 or b == 13 or b == 9 then
-            result = result .. c
-        elseif b < 32 or b == 127 or b == 0 then
-            result = result .. string.format("\\x%02X", b)
+    
+    local result = {}
+    local i = 1
+    local len = #str
+    
+    while i <= len do
+        local codePoint, nextPos = utf8.decode(str, i)
+        if codePoint then
+            -- Проверяем на скрытые ломающие символы (управляющие ASCII, bidi-маркеры, нулевые байты и невидимые пробелы)
+            local isControl = (codePoint < 32 and codePoint ~= 10 and codePoint ~= 9) 
+                or (codePoint >= 127 and codePoint <= 159)
+                or (codePoint >= 0x200B and codePoint <= 0x200F) 
+                or (codePoint >= 0x202A and codePoint <= 0x202E) 
+                or (codePoint >= 0x2060 and codePoint <= 0x206F)
+                
+            if isControl then
+                for j = i, nextPos - 1 do
+                    table.insert(result, string.format("\\x%02X", string.byte(str, j)))
+                end
+            else
+                table.insert(result, string.sub(str, i, nextPos - 1))
+            end
+            i = nextPos
         else
-            result = result .. c
+            -- Бинарный мусор вне UTF-8 лимитов переводим в безопасный HEX
+            table.insert(result, string.format("\\x%02X", string.byte(str, i)))
+            i = i + 1
         end
     end
-    return result
+    
+    return table.concat(result)
 end
 
 local function generateGUID() 
@@ -261,21 +279,21 @@ Header.BorderSizePixel = 0
 Header.Parent = Main
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(0, 160, 1, 0)
+Title.Size = UDim2.new(0, 140, 1, 0)
 Title.BackgroundTransparency = 1
-Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.8.7"
+Title.Position = UDim2.new(0, 12, 0, 0)
+Title.Text = "KRALLDEN SPY v9.8.8"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.SourceSansBold
-Title.TextSize = 15
+Title.TextSize = 14
 Title.ZIndex = 11
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = Header
 
--- КЕЙБИНД ЭЛЕМЕНТЫ (Поля из скриншота)
+-- КЕЙБИНД ЭЛЕМЕНТЫ (Смещены сильно левее к тексту)
 local KeybindBtn = Instance.new("TextButton")
-KeybindBtn.Size = UDim2.new(0, 70, 0, 24)
-KeybindBtn.Position = UDim2.new(0, 180, 0.5, -12)
+KeybindBtn.Size = UDim2.new(0, 65, 0, 22)
+KeybindBtn.Position = UDim2.new(0, 150, 0.5, -11)
 KeybindBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
 KeybindBtn.Text = "NONE"
 KeybindBtn.TextColor3 = Color3.fromRGB(255, 200, 100)
@@ -286,9 +304,9 @@ KeybindBtn.ZIndex = 12
 KeybindBtn.Parent = Header
 
 local ClearKeybindBtn = Instance.new("TextButton")
-ClearKeybindBtn.Size = UDim2.new(0, 24, 0, 24)
-ClearKeybindBtn.Position = UDim2.new(0, 255, 0.5, -12)
-ClearKeybindBtn.BackgroundColor3 = Color3.fromRGB(75, 35, 35)
+ClearKeybindBtn.Size = UDim2.new(0, 22, 0, 22)
+ClearKeybindBtn.Position = UDim2.new(0, 220, 0.5, -11)
+ClearKeybindBtn.BackgroundColor3 = Color3.fromRGB(35, 75, 150) -- Синий ресет
 ClearKeybindBtn.Text = "X"
 ClearKeybindBtn.TextColor3 = Color3.new(1, 1, 1)
 ClearKeybindBtn.Font = Enum.Font.SourceSansBold
@@ -403,7 +421,7 @@ local RedListLayout = Instance.new("UIListLayout")
 RedListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 RedListLayout.Parent = RedListScroll
 
--- Логика Сворачивания / Разворачивания
+-- Логика Сворачивания / Разворачивания (ФИКС ОШИБКИ ТВИНА И ЗАВИСАНИЯ КНОПОК)
 local function toggleMinimize()
     isMin = not isMin
     local curX = Main.AbsolutePosition.X + Main.AbsoluteSize.X
@@ -416,19 +434,41 @@ local function toggleMinimize()
         AntiSpamBtn.Visible = false
         BlockBtn.Visible = false
         DelBtn.Visible = false
+        KeybindBtn.Visible = false       
+        ClearKeybindBtn.Visible = false  
         
-        Main:TweenSizeAndPosition(UDim2.new(0, 250, 0, 35), UDim2.new(0, curX - 250, 0, curY), "Out", "Quad", 0.15, true)
+        pcall(function()
+            Main:TweenSizeAndPosition(
+                UDim2.new(0, 250, 0, 35), 
+                UDim2.new(0, curX - 250, 0, curY), 
+                Enum.EasingDirection.Out, 
+                Enum.EasingStyle.Quad, 
+                0.15, 
+                true
+            )
+        end)
         MinBtn.Text = "+"
     else
-        Main:TweenSizeAndPosition(UDim2.new(0, 820, 0, 440), UDim2.new(0, curX - 820, 0, curY), "Out", "Quad", 0.15, true, function()
-            ContentFrame.Visible = true
-            ControlBtn.Visible = true
-            SelfBtn.Visible = true
-            DelBtn.Visible = true
-            if not controlMode then
-                AntiSpamBtn.Visible = true
-                BlockBtn.Visible = true
-            end
+        ContentFrame.Visible = true
+        ControlBtn.Visible = true
+        SelfBtn.Visible = true
+        DelBtn.Visible = true
+        KeybindBtn.Visible = true       
+        ClearKeybindBtn.Visible = true  
+        if not controlMode then
+            AntiSpamBtn.Visible = true
+            BlockBtn.Visible = true
+        end
+        
+        pcall(function()
+            Main:TweenSizeAndPosition(
+                UDim2.new(0, 820, 0, 440), 
+                UDim2.new(0, curX - 820, 0, curY), 
+                Enum.EasingDirection.Out, 
+                Enum.EasingStyle.Quad, 
+                0.15, 
+                true
+            )
         end)
         MinBtn.Text = "_"
         lastCount = -1
