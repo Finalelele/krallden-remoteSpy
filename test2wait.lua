@@ -70,7 +70,7 @@ local isMin = false
 local currentKeybind = nil
 local isBinding = false
 
--- Продвинутая UTF-8 очистка строк (Защита от хитрой обфускации без поломки кириллицы)
+-- Продвинутая очистка строк (БЕЗ ИСПОЛЬЗОВАНИЯ UTF8 — ЗАЩИТА ОТ БАГОВ ИНЖЕКТОРА)
 local function sanitizeString(str)
     if type(str) ~= "string" then return tostring(str) end
     
@@ -79,26 +79,23 @@ local function sanitizeString(str)
     local len = #str
     
     while i <= len do
-        local codePoint, nextPos = utf8.decode(str, i)
-        if codePoint then
-            -- Проверяем на скрытые ломающие символы (управляющие ASCII, bidi-маркеры, нулевые байты и невидимые пробелы)
-            local isControl = (codePoint < 32 and codePoint ~= 10 and codePoint ~= 9) 
-                or (codePoint >= 127 and codePoint <= 159)
-                or (codePoint >= 0x200B and codePoint <= 0x200F) 
-                or (codePoint >= 0x202A and codePoint <= 0x202E) 
-                or (codePoint >= 0x2060 and codePoint <= 0x206F)
-                
-            if isControl then
-                for j = i, nextPos - 1 do
-                    table.insert(result, string.format("\\x%02X", string.byte(str, j)))
-                end
+        local b1 = string.byte(str, i)
+        
+        if (b1 >= 32 and b1 <= 126) or b1 == 10 or b1 == 9 or b1 == 13 then
+            table.insert(result, string.char(b1))
+            i = i + 1
+        elseif (b1 == 208 or b1 == 209) and i < len then
+            local b2 = string.byte(str, i + 1)
+            if b2 and b2 >= 128 and b2 <= 191 then
+                table.insert(result, string.char(b1, b2))
+                i = i + 2
             else
-                table.insert(result, string.sub(str, i, nextPos - 1))
+                table.insert(result, string.format("\\x%02X", b1))
+                i = i + 1
             end
-            i = nextPos
+            
         else
-            -- Бинарный мусор вне UTF-8 лимитов переводим в безопасный HEX
-            table.insert(result, string.format("\\x%02X", string.byte(str, i)))
+            table.insert(result, string.format("\\x%02X", b1))
             i = i + 1
         end
     end
