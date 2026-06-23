@@ -71,36 +71,20 @@ local currentKeybind = nil
 local isBinding = false
 
 -- Продвинутая очистка строк (БЕЗ ИСПОЛЬЗОВАНИЯ UTF8 — ЗАЩИТА ОТ БАГОВ ИНЖЕКТОРА)
+-- Ультра-стабильная очистка строк (Патч против превращения шаблона UI в HEX)
 local function sanitizeString(str)
     if type(str) ~= "string" then return tostring(str) end
     
-    local result = {}
-    local i = 1
-    local len = #str
-    
-    while i <= len do
-        local b1 = string.byte(str, i)
-        
-        if (b1 >= 32 and b1 <= 126) or b1 == 10 or b1 == 9 or b1 == 13 then
-            table.insert(result, string.char(b1))
-            i = i + 1
-        elseif (b1 == 208 or b1 == 209) and i < len then
-            local b2 = string.byte(str, i + 1)
-            if b2 and b2 >= 128 and b2 <= 191 then
-                table.insert(result, string.char(b1, b2))
-                i = i + 2
-            else
-                table.insert(result, string.format("\\x%02X", b1))
-                i = i + 1
-            end
-            
+    local chunks = {}
+    for i = 1, #str do
+        local b = string.byte(str, i)
+        if (b >= 32 and b <= 126) or b == 10 or b == 9 or b == 13 or b == 208 or b == 209 or (b >= 128 and b <= 191) then
+            table.insert(chunks, string.char(b))
         else
-            table.insert(result, string.format("\\x%02X", b1))
-            i = i + 1
+            table.insert(chunks, string.format("\\x%02X", b))
         end
     end
-    
-    return table.concat(result)
+    return table.concat(chunks)
 end
 
 local function generateGUID() 
@@ -172,7 +156,7 @@ local function refreshSelectionColors()
     end
 end
 
--- Форматирование данных
+-- Форматирование данных таблицы с точечной очисткой строк
 local function formatTableVisual(val, indent)
     indent = indent or 0
     local tab = string.rep("    ", indent)
@@ -195,7 +179,7 @@ local function formatTableVisual(val, indent)
             local keyStr = ""
             if not isArray then
                 if type(k) == "string" then
-                    keyStr = k .. " = "
+                    keyStr = sanitizeString(k) .. " = "
                 else
                     keyStr = "[" .. tostring(k) .. "] = "
                 end
@@ -204,7 +188,7 @@ local function formatTableVisual(val, indent)
        end
         return res .. tab .. "}"
     elseif t == "string" then 
-        return '"' .. val .. '"'
+        return '"' .. sanitizeString(val) .. '"'
     elseif t == "Vector3" then 
         return string.format("Vector3.new(%.3f, %.3f, %.3f)", val.X, val.Y, val.Z)
     elseif t == "CFrame" then 
@@ -260,7 +244,7 @@ local function updateRedListUI()
         
         b.MouseButton1Click:Connect(function() 
             currentSelectionGUID = data.guid
-            Details.Text = sanitizeString(getSortedDetails(data))
+            Details.Text = getSortedDetails(data)
             updateDetailsCanvas()
             refreshSelectionColors()
         end)
@@ -542,14 +526,15 @@ local function addLog(rem, args, isSelf, typeLabel)
     if typeLabel == "FC" and not spyFC then return end
     if typeLabel == "IS" and not spyIS then return end
     
-    local eventPath = getSafePath(rem)
+    -- Сразу намертво очищаем путь ивента от скрытого мусора
+    local eventPath = sanitizeString(getSafePath(rem))
     if not isSelf and ManualBannedPaths[eventPath] then return end
 
     local function parseValue(v, d)
         d = d or 0
         if d > 4 then return "..." end
         local t = type(v)
-        if t == "string" then return '"' .. v .. '"'
+        if t == "string" then return '"' .. sanitizeString(v) .. '"'
         elseif t == "table" then
             local isArray = true
             local count = 0
@@ -561,7 +546,7 @@ local function addLog(rem, args, isSelf, typeLabel)
                 if i > 15 then res = res .. "... " break end
                 if isArray then res = res .. parseValue(val, d + 1) .. ", " 
                 else 
-                    local key = (type(k) == "number") and "["..k.."]" or '["'..tostring(k)..'"]'
+                    local key = (type(k) == "number") and "["..k.."]" or '["'..sanitizeString(tostring(k))..'"]'
                     res = res .. key .. " = " .. parseValue(val, d + 1) .. ", " 
                 end
             end
@@ -571,7 +556,7 @@ local function addLog(rem, args, isSelf, typeLabel)
             local tn = typeof(v)
             if tn == "CFrame" then return "CFrame.new(" .. tostring(v) .. ")"
             elseif tn == "Vector3" then return "Vector3.new(" .. tostring(v) .. ")"
-            elseif tn == "Instance" then return getSafePath(v) end
+            elseif tn == "Instance" then return sanitizeString(getSafePath(v)) end
             return tostring(v)
        else return tostring(v) end
     end
@@ -591,6 +576,8 @@ local function addLog(rem, args, isSelf, typeLabel)
 
     local methodName = (typeLabel == "IS") and "InvokeServer" or (typeLabel == "FC" and "FireClient" or "FireServer")
     local displayArgs = (finalArgsStr == "") and "None" or finalArgsStr
+    
+    -- Чистая разметка шаблона
     local logDetails = string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", typeLabel, eventPath, displayArgs, eventPath, methodName, finalArgsStr)
 
     -- Anti-Spam
@@ -613,7 +600,6 @@ local function addLog(rem, args, isSelf, typeLabel)
         AntiSpamCooldowns[eventPath] = currentTime
     end
 
-    -- Добавление в память
     local newLog = { 
         guid = generateGUID(), name = tostring(rem.Name), type = typeLabel, isSelf = isSelf, 
         fullText = logDetails, path = eventPath, argsStr = finalArgsStr, rawArgs = args 
@@ -824,7 +810,7 @@ task.spawn(function()
             
             b.MouseButton1Click:Connect(function()
                 currentSelectionGUID = d.guid
-                 Details.Text = sanitizeString(getSortedDetails(d))
+                Details.Text = getSortedDetails(d)
                 updateDetailsCanvas()
                 refreshSelectionColors()
             end)
@@ -869,7 +855,7 @@ SortBtn.MouseButton1Click:Connect(function()
             for _, d in pairs(ManualBannedPaths) do if d.guid == currentSelectionGUID then foundData = d break end end
         end
         if foundData then
-            Details.Text = sanitizeString(getSortedDetails(foundData))
+            Details.Text = getSortedDetails(foundData)
             updateDetailsCanvas()
         end
     end
