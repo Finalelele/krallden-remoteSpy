@@ -474,20 +474,21 @@ local function addLog(rem, args, isSelf, typeLabel)
 end
 
 -- ================= ПЕРЕХВАТ (HOOKS) =================
+-- 1. ХУК ДЛЯ КЛАССИЧЕСКИХ ВЫЗОВОВ: RemoteEvent:FireServer(...)
 local oldNamecall
 local oldIndex
 
--- Вспомогательная функция для обработки логов (передает данные в твой addLog) [cite: 35]
+-- Вспомогательная функция для обработки логов
 local function processEvent(self, method, args, isSelf)
     if not self or typeof(self) ~= "Instance" then return end
     
     local lowerM = method:lower()
     if lowerM == "fireserver" and self:IsA("RemoteEvent") then
-        task.spawn(addLog, self, args, isSelf, "FS") -- [cite: 39]
+        task.spawn(addLog, self, args, isSelf, "FS")
     elseif lowerM == "fireclient" and self:IsA("RemoteEvent") then
-        task.spawn(addLog, self, args, isSelf, "FC") -- [cite: 39]
+        task.spawn(addLog, self, args, isSelf, "FC")
     elseif lowerM == "invokeserver" and self:IsA("RemoteFunction") then
-        task.spawn(addLog, self, args, isSelf, "IS") -- [cite: 39]
+        task.spawn(addLog, self, args, isSelf, "IS")
     end
 end
 
@@ -509,14 +510,16 @@ oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, key)
     if typeof(self) == "Instance" and type(key) == "string" then
         local lowerKey = key:lower()
         if lowerKey == "fireserver" or lowerKey == "fireclient" or lowerKey == "invokeserver" then
-            -- Возвращаем кастомную функцию-заглушку, которая перехватит сам момент вызова
+            -- Возвращаем кастомную функцию-заглушку
             return newcclosure(function(instanceSelf, ...)
-                local args = {...}
                 local isSelf = checkcaller()
                 
-                processEvent(instanceSelf, key, args, isSelf)
+                -- Логируем аргументы отдельно, не ломая оригинальный поток данных
+                processEvent(instanceSelf, key, {...}, isSelf)
                 
-                return originalResult(instanceSelf, unpack(args))
+                -- КРИТИЧЕСКИЙ ФИКС: Вызываем оригинал напрямую с исходными аргументами (...), 
+                -- чтобы движок Roblox не блокировал запрос
+                return originalResult(instanceSelf, ...)
             end)
         end
     end
