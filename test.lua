@@ -495,11 +495,14 @@ end
 -- 1. ХУК ДЛЯ КЛАССИЧЕСКИХ ВЫЗОВОВ: RemoteEvent:FireServer(...)
 oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     local method = getnamecallmethod()
-    local args = {...}
     local isSelf = checkcaller()
+            
+    local args = {...}
+    task.spawn(function()
+        processEvent(self, method, args, isSelf)
+    end)
     
-    processEvent(self, method, args, isSelf)
-    
+    -- Возвращаем управление оригинальной функции без задержек
     return oldNamecall(self, ...)
 end))
 
