@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.8.6 - FIXED NAME DISPLAY & DEL LOGIC ]] --
+-- [[ KRALLDEN SPY v9.8.7 - FIXED NAME DISPLAY & DEL LOGIC ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -242,7 +242,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(0, 200, 1, 0)
 Title.BackgroundTransparency = 1
 Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.8.6"
+Title.Text = "KRALLDEN SPY v9.8.7"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 16
@@ -474,27 +474,57 @@ local function addLog(rem, args, isSelf, typeLabel)
 end
 
 -- ================= ПЕРЕХВАТ (HOOKS) =================
-local mt = getrawmetatable(game)
-local old = mt.__namecall
-setreadonly(mt, false)
+local oldNamecall
+local oldIndex
 
-mt.__namecall = newcclosure(function(self, ...)
-    local m = getnamecallmethod()
-    local a = {...}
-    local s = checkcaller()
+local function processEvent(self, method, args, isSelf)
+    if not self or typeof(self) ~= "Instance" then return end
     
-    local lowerM = m:lower()
-    if lowerM == "fireserver" then 
-        task.spawn(addLog, self, a, s, "FS")
-    elseif lowerM == "fireclient" then 
-        task.spawn(addLog, self, a, s, "FC")
-    elseif lowerM == "invokeserver" then 
-        task.spawn(addLog, self, a, s, "IS") 
+    local lowerM = method:lower()
+    if lowerM == "fireserver" and self:IsA("RemoteEvent") then
+        task.spawn(addLog, self, args, isSelf, "FS")
+    elseif lowerM == "fireclient" and self:IsA("RemoteEvent") then
+        task.spawn(addLog, self, args, isSelf, "FC")
+    elseif lowerM == "invokeserver" and self:IsA("RemoteFunction") then
+        task.spawn(addLog, self, args, isSelf, "IS")
+    end
+end
+
+-- 1. ХУК ДЛЯ КЛАССИЧЕСКИХ ВЫЗОВОВ: RemoteEvent:FireServer(...)
+oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+    local method = getnamecallmethod()
+    local isSelf = checkcaller()
+    
+    local args = {...}
+    task.spawn(function()
+        processEvent(self, method, args, isSelf)
+    end)
+        
+    return oldNamecall(self, ...)
+end))
+
+-- 2. ХУК ДЛЯ ВЫЗОВОВ ЧЕРЕЗ ТОЧКУ: RemoteEvent.FireServer(RemoteEvent, ...)
+oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, key)
+    local originalResult = oldIndex(self, key)
+    
+    if typeof(self) == "Instance" and type(key) == "string" then
+        local lowerKey = key:lower()
+        if lowerKey == "fireserver" or lowerKey == "fireclient" or lowerKey == "invokeserver" then
+            return newcclosure(function(instanceSelf, ...)
+                local isSelf = checkcaller()
+                
+                local args = {...}
+                task.spawn(function()
+                    processEvent(instanceSelf, key, args, isSelf)
+                end)
+                
+                return originalResult(instanceSelf, ...)
+            end)
+        end
     end
     
-    return old(self, ...)
-end)
-setreadonly(mt, true)
+    return originalResult
+end))
 
 -- ================= INTERACTIONS =================
 ControlBtn.MouseButton1Click:Connect(function() 
