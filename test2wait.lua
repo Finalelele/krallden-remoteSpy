@@ -421,7 +421,7 @@ local RedListLayout = Instance.new("UIListLayout")
 RedListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 RedListLayout.Parent = RedListScroll
 
--- Логика Сворачивания / Разворачивания (Исправлено скрытие биндов)
+-- Логика Сворачивания / Разворачивания (ФИКС ОШИБКИ ТВИНА И ЗАВИСАНИЯ КНОПОК)
 local function toggleMinimize()
     isMin = not isMin
     local curX = Main.AbsolutePosition.X + Main.AbsoluteSize.X
@@ -434,23 +434,41 @@ local function toggleMinimize()
         AntiSpamBtn.Visible = false
         BlockBtn.Visible = false
         DelBtn.Visible = false
-        KeybindBtn.Visible = false       -- Скрываем кнопку бинда
-        ClearKeybindBtn.Visible = false  -- Скрываем кнопку очистки
+        KeybindBtn.Visible = false       
+        ClearKeybindBtn.Visible = false  
         
-        Main:TweenSizeAndPosition(UDim2.new(0, 250, 0, 35), UDim2.new(0, curX - 250, 0, curY), "Out", "Quad", 0.15, true)
+        pcall(function()
+            Main:TweenSizeAndPosition(
+                UDim2.new(0, 250, 0, 35), 
+                UDim2.new(0, curX - 250, 0, curY), 
+                Enum.EasingDirection.Out, 
+                Enum.EasingStyle.Quad, 
+                0.15, 
+                true
+            )
+        end)
         MinBtn.Text = "+"
     else
-        Main:TweenSizeAndPosition(UDim2.new(0, 820, 0, 440), UDim2.new(0, curX - 820, 0, curY), "Out", "Quad", 0.15, true, function()
-            ContentFrame.Visible = true
-            ControlBtn.Visible = true
-            SelfBtn.Visible = true
-            DelBtn.Visible = true
-            KeybindBtn.Visible = true       -- Возвращаем кнопку бинда
-            ClearKeybindBtn.Visible = true  -- Возвращаем кнопку очистки
-            if not controlMode then
-                AntiSpamBtn.Visible = true
-                BlockBtn.Visible = true
-            end
+        ContentFrame.Visible = true
+        ControlBtn.Visible = true
+        SelfBtn.Visible = true
+        DelBtn.Visible = true
+        KeybindBtn.Visible = true       
+        ClearKeybindBtn.Visible = true  
+        if not controlMode then
+            AntiSpamBtn.Visible = true
+            BlockBtn.Visible = true
+        end
+        
+        pcall(function()
+            Main:TweenSizeAndPosition(
+                UDim2.new(0, 820, 0, 440), 
+                UDim2.new(0, curX - 820, 0, curY), 
+                Enum.EasingDirection.Out, 
+                Enum.EasingStyle.Quad, 
+                0.15, 
+                true
+            )
         end)
         MinBtn.Text = "_"
         lastCount = -1
