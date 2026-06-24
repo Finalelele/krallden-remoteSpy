@@ -295,7 +295,7 @@ local KeybindBtn = nil
 local ClearKeybindBtn = nil
 
 if not isMobile then
-    local KeybindBtn = Instance.new("TextButton")
+    KeybindBtn = Instance.new("TextButton")
     KeybindBtn.Size = UDim2.new(0, 65, 0, 22)
     KeybindBtn.Position = UDim2.new(0, 150, 0.5, -11)
     KeybindBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
