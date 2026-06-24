@@ -268,16 +268,16 @@ MinBtn.ZIndex = 12
 MinBtn.BorderSizePixel = 0
 MinBtn.Parent = Header
 
-local function createHeaderBtn(text, posX, posY, sizeX, sizeY, color)
+local function createHeaderBtn(text, offset, color, sizeX)
     local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0, sizeX or 100, 0, sizeY or 24)
-    b.Position = UDim2.new(0, posX, 0.5, posY or -12)
-    b.BackgroundColor3 = color or Color3.fromRGB(40, 40, 45)
+    b.Size = UDim2.new(0, sizeX or 100, 0, 24)
+    b.Position = UDim2.new(1, offset, 0.5, -12)
+    b.BackgroundColor3 = color
     b.Text = text
     b.TextColor3 = Color3.new(1, 1, 1)
     b.Font = Enum.Font.SourceSansBold
     b.TextSize = 11
-    b.ZIndex = 12
+    b.ZIndex = 11
     b.BorderSizePixel = 0
     b.Parent = Header
     return b
@@ -295,10 +295,29 @@ local KeybindBtn = nil
 local ClearKeybindBtn = nil
 
 if not isMobile then
-    KeybindBtn = createHeaderBtn("NONE", 150, -11, 65, 22, Color3.fromRGB(45, 45, 50))
+    local KeybindBtn = Instance.new("TextButton")
+    KeybindBtn.Size = UDim2.new(0, 65, 0, 22)
+    KeybindBtn.Position = UDim2.new(0, 150, 0.5, -11)
+    KeybindBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+    KeybindBtn.Text = "BIND: NONE"
     KeybindBtn.TextColor3 = Color3.fromRGB(255, 200, 100)
+    KeybindBtn.Font = Enum.Font.SourceSansBold
+    KeybindBtn.TextSize = 11
+    KeybindBtn.BorderSizePixel = 0
+    KeybindBtn.ZIndex = 12
+    KeybindBtn.Parent = Header
     
-    ClearKeybindBtn = createHeaderBtn("X", 220, -11, 22, 22, Color3.fromRGB(35, 75, 150))
+    local ClearKeybindBtn = Instance.new("TextButton")
+    ClearKeybindBtn.Size = UDim2.new(0, 22, 0, 22)
+    ClearKeybindBtn.Position = UDim2.new(0, 220, 0.5, -11)
+    ClearKeybindBtn.BackgroundColor3 = Color3.fromRGB(35, 75, 150) -- Синий ресет
+    ClearKeybindBtn.Text = "X"
+    ClearKeybindBtn.TextColor3 = Color3.new(1, 1, 1)
+    ClearKeybindBtn.Font = Enum.Font.SourceSansBold
+    ClearKeybindBtn.TextSize = 11
+    ClearKeybindBtn.BorderSizePixel = 0
+    ClearKeybindBtn.ZIndex = 12
+    ClearKeybindBtn.Parent = Header
 end
 
 -- ================= CONTENT =================
