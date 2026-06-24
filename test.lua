@@ -268,16 +268,16 @@ MinBtn.ZIndex = 12
 MinBtn.BorderSizePixel = 0
 MinBtn.Parent = Header
 
-local function createHeaderBtn(text, offset, color, sizeX)
+local function createHeaderBtn(text, posX, posY, sizeX, sizeY, color)
     local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0, sizeX or 100, 0, 24)
-    b.Position = UDim2.new(1, offset, 0.5, -12)
-    b.BackgroundColor3 = color
+    b.Size = UDim2.new(0, sizeX or 100, 0, sizeY or 24)
+    b.Position = UDim2.new(0, posX, 0.5, posY or -12)
+    b.BackgroundColor3 = color or Color3.fromRGB(40, 40, 45)
     b.Text = text
     b.TextColor3 = Color3.new(1, 1, 1)
     b.Font = Enum.Font.SourceSansBold
     b.TextSize = 11
-    b.ZIndex = 11
+    b.ZIndex = 12
     b.BorderSizePixel = 0
     b.Parent = Header
     return b
@@ -294,10 +294,11 @@ BlockBtn.Visible = false
 local KeybindBtn = nil
 local ClearKeybindBtn = nil
 
--- Сами кнопки создаем только если это ПК или Эмулятор
 if not isMobile then
-    KeybindBtn = createHeaderBtn("BIND: NONE", -615, Color3.fromRGB(100, 60, 150), 80)
-    ClearKeybindBtn = createHeaderBtn("RESET BIND", -695, Color3.fromRGB(120, 40, 40), 75)
+    KeybindBtn = createHeaderBtn("NONE", 150, -11, 65, 22, Color3.fromRGB(45, 45, 50))
+    KeybindBtn.TextColor3 = Color3.fromRGB(255, 200, 100)
+    
+    ClearKeybindBtn = createHeaderBtn("X", 220, -11, 22, 22, Color3.fromRGB(35, 75, 150))
 end
 
 -- ================= CONTENT =================
