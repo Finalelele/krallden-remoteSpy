@@ -1,9 +1,12 @@
--- [[ KRALLDEN SPY v9.8.7 - FIXED NAME DISPLAY & DEL LOGIC ]] --
+-- [[ KRALLDEN SPY v9.8.8 - FIXED NAME DISPLAY & DEL LOGIC & OPTIMIZED ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 local TextService = game:GetService("TextService")
 local UserInputService = game:GetService("UserInputService")
+
+-- Проверка на мобильное устройство (Touch есть, Клавиатуры нет)
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
 -- Очистка старых версий
 if playerGui:FindFirstChild("KralldenSpyUI") then 
@@ -52,6 +55,9 @@ local PathFilter = {}
 local ManualBannedPaths = {}
 local AntiSpamCooldowns = {}
 local AntiSpamCounts = {}
+
+-- Кэш путей для предотвращения лагов при вызове getSafePath
+local pathCache = setmetatable({}, {__mode = "k"})
 
 local selfMode = true
 local controlMode = true
@@ -154,7 +160,7 @@ local function formatTableVisual(val, indent)
                 break 
             end 
         end
-        
+       
         for k, v in pairs(val) do
             local keyStr = ""
             if not isArray then
@@ -243,36 +249,13 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(0, 200, 1, 0)
 Title.BackgroundTransparency = 1
 Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.8.7"
+Title.Text = "KRALLDEN SPY v9.8.8"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 16
 Title.ZIndex = 11
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = Header
-
-local KeybindBtn = Instance.new("TextButton")
-KeybindBtn.Size = UDim2.new(0, 65, 0, 22)
-KeybindBtn.Position = UDim2.new(0, 150, 0.5, -11)
-KeybindBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
-KeybindBtn.TextColor3 = Color3.fromRGB(255, 200, 100)
-KeybindBtn.Font = Enum.Font.SourceSansBold
-KeybindBtn.TextSize = 11
-KeybindBtn.BorderSizePixel = 0
-KeybindBtn.ZIndex = 12
-KeybindBtn.Parent = Header
-
-local ClearKeybindBtn = Instance.new("TextButton")
-ClearKeybindBtn.Size = UDim2.new(0, 22, 0, 22)
-ClearKeybindBtn.Position = UDim2.new(0, 220, 0.5, -11)
-ClearKeybindBtn.BackgroundColor3 = Color3.fromRGB(35, 75, 150) -- Синий ресет
-ClearKeybindBtn.Text = "X"
-ClearKeybindBtn.TextColor3 = Color3.new(1, 1, 1)
-ClearKeybindBtn.Font = Enum.Font.SourceSansBold
-ClearKeybindBtn.TextSize = 11
-ClearKeybindBtn.BorderSizePixel = 0
-ClearKeybindBtn.ZIndex = 12
-ClearKeybindBtn.Parent = Header
 
 local MinBtn = Instance.new("TextButton")
 MinBtn.Size = UDim2.new(0, 45, 0, 35)
@@ -307,6 +290,15 @@ local AntiSpamBtn = createHeaderBtn("ANTI-SPAM: ON", -420, Color3.fromRGB(180, 1
 AntiSpamBtn.Visible = false
 local BlockBtn = createHeaderBtn("BLOCK EVENT", -530, Color3.fromRGB(150, 50, 50))
 BlockBtn.Visible = false
+
+local KeybindBtn = nil
+local ClearKeybindBtn = nil
+
+-- Сами кнопки создаем только если это ПК или Эмулятор
+if not isMobile then
+    KeybindBtn = createHeaderBtn("BIND: NONE", -615, Color3.fromRGB(100, 60, 150), 80)
+    ClearKeybindBtn = createHeaderBtn("RESET BIND", -695, Color3.fromRGB(120, 40, 40), 75)
+end
 
 -- ================= CONTENT =================
 ContentFrame = Instance.new("Frame")
@@ -380,8 +372,11 @@ local RedListLayout = Instance.new("UIListLayout")
 RedListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 RedListLayout.Parent = RedListScroll
 
--- ================= PATH LOGIC =================
+-- ================= PATH LOGIC (OPTIMIZED WITH CACHE) =================
 local function getSafePath(obj)
+    if not obj then return "nil" end
+    if pathCache[obj] then return pathCache[obj] end -- Если путь уже считали, мгновенно отдаем его
+    
     local p = ""
     pcall(function() 
         local t = obj
@@ -393,7 +388,7 @@ local function getSafePath(obj)
             else
                 safeName = n
             end
-            
+       
             if p == "" then 
                 p = safeName 
             else 
@@ -408,7 +403,9 @@ local function getSafePath(obj)
     end)
     
     local finalPath = "game." .. p
-    return finalPath:gsub("%.%[", "[") 
+    finalPath = finalPath:gsub("%.%[", "[") 
+    pathCache[obj] = finalPath -- Записываем в кэш
+    return finalPath
 end
 
 -- ================= ADD LOG =================
@@ -587,7 +584,7 @@ DelBtn.MouseButton1Click:Connect(function()
             local nM = {}
             for _, m in ipairs(MainMemory) do 
                 if m.guid == currentSelectionGUID then 
-                    targetData = m -- Запоминаем данные удаляемого ивента
+                    targetData = m 
                 else 
                     nM[#nM + 1] = m 
                 end 
@@ -595,15 +592,11 @@ DelBtn.MouseButton1Click:Connect(function()
             if targetData then MainMemory = nM end
         end
         
-        -- Логика полной очистки для возможности повторного появления
         if targetData then
-            -- Если удаляем лог, то также принудительно чистим этот путь из бан-фильтров
-            -- Это позволяет ивенту снова начать логироваться (внутренний бан-список очищается)
             if ManualBannedPaths[targetData.path] then
                 ManualBannedPaths[targetData.path] = nil
             end
             
-            -- Очищаем кулдауны спама для этого пути
             AntiSpamCooldowns[targetData.path] = 0
             AntiSpamCounts[targetData.path] = 0
 
@@ -666,84 +659,68 @@ MinBtn.MouseButton1Click:Connect(function()
         AntiSpamBtn.Visible = false
         BlockBtn.Visible = false
         DelBtn.Visible = false
-        KeybindBtn.Visible = false       
-        ClearKeybindBtn.Visible = false  
         
-        pcall(function()
-            Main:TweenSizeAndPosition(
-                UDim2.new(0, 250, 0, 35), 
-                UDim2.new(0, curX - 250, 0, curY), 
-                Enum.EasingDirection.Out, 
-                Enum.EasingStyle.Quad, 
-                0.15, 
-                true
-            )
-        end)
+        if KeybindBtn then KeybindBtn.Visible = false end
+        if ClearKeybindBtn then ClearKeybindBtn.Visible = false end
+       
+        Main:TweenSizeAndPosition(UDim2.new(0, 250, 0, 35), UDim2.new(0, curX - 250, 0, curY), "Out", "Quad", 0.15, true)
         MinBtn.Text = "+"
     else
-        ContentFrame.Visible = true
-        ControlBtn.Visible = true
-        SelfBtn.Visible = true
-        DelBtn.Visible = true
-        KeybindBtn.Visible = true       
-        ClearKeybindBtn.Visible = true  
-        if not controlMode then
-            AntiSpamBtn.Visible = true
-            BlockBtn.Visible = true
-        end
-        
-        pcall(function()
-            Main:TweenSizeAndPosition(
-                UDim2.new(0, 820, 0, 440), 
-                UDim2.new(0, curX - 820, 0, curY), 
-                Enum.EasingDirection.Out, 
-                Enum.EasingStyle.Quad, 
-                0.15, 
-                true
-            )
+        Main:TweenSizeAndPosition(UDim2.new(0, 820, 0, 440), UDim2.new(0, curX - 820, 0, curY), "Out", "Quad", 0.15, true, function()
+            ContentFrame.Visible = true
+            ControlBtn.Visible = true
+            SelfBtn.Visible = true
+            DelBtn.Visible = true
+            
+            if KeybindBtn then KeybindBtn.Visible = true end
+            if ClearKeybindBtn then ClearKeybindBtn.Visible = true end
+            
+            if not controlMode then
+                AntiSpamBtn.Visible = true
+                BlockBtn.Visible = true
+            end
         end)
         MinBtn.Text = "_"
         lastCount = -1
     end
 end)
 
--- ================= ЛОГИКА КЕЙБИНДА И СВЯЗКА С КНОПКАМИ =================
-local currentKeybind = nil -- Теперь изначально бинда нет
-local isBinding = false
+if not isMobile and KeybindBtn and ClearKeybindBtn then
+    local currentKeybind = nil
+    local isBinding = false
 
-KeybindBtn.Text = "BIND: NONE"
+    KeybindBtn.MouseButton1Click:Connect(function()
+        isBinding = true
+        KeybindBtn.Text = "PRESS KEY..."
+    end)
 
-KeybindBtn.MouseButton1Click:Connect(function()
-    isBinding = true
-    KeybindBtn.Text = "PRESS KEY..."
-end)
+    ClearKeybindBtn.MouseButton1Click:Connect(function()
+        currentKeybind = nil
+        KeybindBtn.Text = "BIND: NONE"
+    end)
 
-ClearKeybindBtn.MouseButton1Click:Connect(function()
-    currentKeybind = nil
-    KeybindBtn.Text = "BIND: NONE"
-end)
-
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    
-    if isBinding then
-        if input.UserInputType == Enum.UserInputType.Keyboard then
-            currentKeybind = input.KeyCode
-            isBinding = false
-            KeybindBtn.Text = "BIND: " .. input.KeyCode.Name:upper()
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if isBinding then
+            if input.UserInputType == Enum.UserInputType.Keyboard then
+                currentKeybind = input.KeyCode
+                isBinding = false
+                KeybindBtn.Text = "BIND: " .. input.KeyCode.Name:upper()
+            end
+            return
         end
-        return
-    end
-    
-    if currentKeybind and input.KeyCode == currentKeybind then
-        local events = getconnections(MinBtn.MouseButton1Click)
-        for _, connection in ipairs(events) do
-            connection:Fire()
+        
+        if currentKeybind and input.KeyCode == currentKeybind then
+            local events = getconnections(MinBtn.MouseButton1Click)
+            for _, connection in ipairs(events) do
+                connection:Fire()
+            end
         end
-    end
-end)
+    end)
+end
 
--- ================= RENDER LOOP =================
+-- ================= RENDER LOOP (ПОЛНОСТЬЮ ОПТИМИЗИРОВАН БЕЗ ЛАГОВ) =================
 task.spawn(function()
     while task.wait(0.5) do
         if not ContentFrame or not ContentFrame.Visible then continue end
@@ -760,51 +737,73 @@ task.spawn(function()
         if #MainMemory == lastCount then continue end
         lastCount = #MainMemory
         
-        for _, v in pairs(Scroll:GetChildren()) do 
-            if v:IsA("TextButton") then v:Destroy() end 
-        end
-        
         local sortedMemory = {}
         for _, d in ipairs(MainMemory) do if d.isSelf then sortedMemory[#sortedMemory + 1] = d end end
         for _, d in ipairs(MainMemory) do if not d.isSelf then sortedMemory[#sortedMemory + 1] = d end end
         
+        -- Получаем текущие уже созданные кнопки в Scroll
+        local currentButtons = {}
+        for _, v in pairs(Scroll:GetChildren()) do 
+            if v:IsA("TextButton") then 
+                table.insert(currentButtons, v)
+            end 
+        end
+        
+        -- Если старых кнопок больше, чем логов в памяти (например, очистили логи), удаляем лишние
+        if #currentButtons > #sortedMemory then
+            for i = #sortedMemory + 1, #currentButtons do
+                currentButtons[i]:Destroy()
+                currentButtons[i] = nil
+            end
+        end
+        
+        -- Обновляем свойства существующих кнопок или создаем новые, если логов стало больше
         for i, d in ipairs(sortedMemory) do
-            local b = Instance.new("TextButton")
+            local b = currentButtons[i]
+            
+            if not b then
+                -- Кнопка создается ТОЛЬКО если логов в памяти больше, чем кнопок на экране
+                b = Instance.new("TextButton")
+                b.TextColor3 = Color3.new(1, 1, 1)
+                b.BorderSizePixel = 0
+                b.ClipsDescendants = true
+                b.Parent = Scroll
+                
+                -- Подключаем событие клика один раз на кнопку, GUID читаем динамически
+                b.MouseButton1Click:Connect(function()
+                    local buttonGUID = b:GetAttribute("GUID")
+                    if buttonGUID then
+                        currentSelectionGUID = buttonGUID
+                        local foundData = nil
+                        for _, m in pairs(MainMemory) do 
+                            if m.guid == buttonGUID then foundData = m break end 
+                        end
+                        if foundData then
+                            Details.Text = getSortedDetails(foundData)
+                            updateDetailsCanvas()
+                            refreshSelectionColors()
+                        end
+                    end
+                end)
+            end
+            
+            -- Просто обновляем текст, размер и атрибуты (0% нагрузки на память)
             b.Size = UDim2.new(1, -6, 0, 30)
             b.LayoutOrder = i
             
-            -- ФИКС ОТОБРАЖЕНИЯ: Берем только конечное имя ивента
             local cleanName = d.name:match("[^%.%[%]]+$") or d.name
             cleanName = cleanName:gsub('^"', ''):gsub('"$', ''):gsub('%]$', '')
             
-            -- Формат: [Тип] [S] [Имя]
-            local display = string.format("[%s]%s [%s]", d.type, (d.isSelf and " [S]" or ""), cleanName)
-            b.Text = display
+            b.Text = string.format("[%s]%s [%s]", d.type, (d.isSelf and " [S]" or ""), cleanName)
             
             if currentSelectionGUID == d.guid then
                 b.BackgroundColor3 = Color3.fromRGB(100, 50, 200)
             else
-                if d.isSelf then
-                    b.BackgroundColor3 = Color3.fromRGB(45, 90, 45)
-                else
-                    b.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-                end
+                b.BackgroundColor3 = d.isSelf and Color3.fromRGB(45, 90, 45) or Color3.fromRGB(40, 40, 45)
             end
-            
-            b.TextColor3 = Color3.new(1, 1, 1)
-            b.BorderSizePixel = 0
-            b.ClipsDescendants = true
-            b.Parent = Scroll
             
             b:SetAttribute("GUID", d.guid)
             b:SetAttribute("IsSelf", d.isSelf)
-            
-            b.MouseButton1Click:Connect(function()
-                currentSelectionGUID = d.guid
-                Details.Text = getSortedDetails(d)
-                updateDetailsCanvas()
-                refreshSelectionColors()
-            end)
         end
     end
 end)
