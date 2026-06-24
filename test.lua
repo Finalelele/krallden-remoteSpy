@@ -307,7 +307,7 @@ if not isMobile then
     KeybindBtn.ZIndex = 12
     KeybindBtn.Parent = Header
     
-    local ClearKeybindBtn = Instance.new("TextButton")
+    ClearKeybindBtn = Instance.new("TextButton")
     ClearKeybindBtn.Size = UDim2.new(0, 22, 0, 22)
     ClearKeybindBtn.Position = UDim2.new(0, 220, 0.5, -11)
     ClearKeybindBtn.BackgroundColor3 = Color3.fromRGB(35, 75, 150) -- Синий ресет
