@@ -255,7 +255,6 @@ local KeybindBtn = Instance.new("TextButton")
 KeybindBtn.Size = UDim2.new(0, 65, 0, 22)
 KeybindBtn.Position = UDim2.new(0, 150, 0.5, -11)
 KeybindBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
-KeybindBtn.Text = "NONE"
 KeybindBtn.TextColor3 = Color3.fromRGB(255, 200, 100)
 KeybindBtn.Font = Enum.Font.SourceSansBold
 KeybindBtn.TextSize = 11
@@ -709,8 +708,10 @@ MinBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ================= ЛОГИКА КЕЙБИНДА И СВЯЗКА С КНОПКАМИ =================
-local currentKeybind = Enum.KeyCode.RightControl
+local currentKeybind = nil -- Теперь изначально бинда нет
 local isBinding = false
+
+KeybindBtn.Text = "BIND: NONE"
 
 KeybindBtn.MouseButton1Click:Connect(function()
     isBinding = true
@@ -735,7 +736,10 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
     
     if currentKeybind and input.KeyCode == currentKeybind then
-        Main.Visible = not Main.Visible
+        local events = getconnections(MinBtn.MouseButton1Click)
+        for _, connection in ipairs(events) do
+            connection:Fire()
+        end
     end
 end)
 
