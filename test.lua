@@ -313,7 +313,7 @@ if not isMobile then
     KeybindBtn.Size = UDim2.new(0, 65, 0, 22)
     KeybindBtn.Position = UDim2.new(0, 150, 0.5, -11)
     KeybindBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
-    KeybindBtn.Text = "NONE"
+    KeybindBtn.Text = "BIND: NONE"
     KeybindBtn.TextColor3 = Color3.fromRGB(255, 200, 100)
     KeybindBtn.Font = Enum.Font.SourceSansBold
     KeybindBtn.TextSize = 11
@@ -469,10 +469,7 @@ local function addLog(rem, args, isSelf, typeLabel)
             local count = 0
             for k, val in pairs(v) do count = count + 1 if type(k) ~= "number" or k ~= count then isArray = false break end end
             local res = "{"
-            local i = 0
             for k, val in pairs(v) do 
-                i = i + 1
-                if i > 15 then res = res .. "... " break end
                 if isArray then res = res .. parseValue(val, d + 1) .. ", " 
                 else 
                     local key = (type(k) == "number") and "["..k.."]" or '["'..tostring(k)..'"]'
@@ -689,6 +686,79 @@ BlockBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+MinBtn.MouseButton1Click:Connect(function()
+    isMin = not isMin
+    local curX = Main.AbsolutePosition.X + Main.AbsoluteSize.X
+    local curY = Main.AbsolutePosition.Y
+    
+    if isMin then
+        ContentFrame.Visible = false
+        ControlBtn.Visible = false
+        SelfBtn.Visible = false
+        AntiSpamBtn.Visible = false
+        BlockBtn.Visible = false
+        DelBtn.Visible = false
+        
+        if KeybindBtn then KeybindBtn.Visible = false end
+        if ClearKeybindBtn then ClearKeybindBtn.Visible = false end
+       
+        Main:TweenSizeAndPosition(UDim2.new(0, 250, 0, 35), UDim2.new(0, curX - 250, 0, curY), "Out", "Quad", 0.15, true)
+        MinBtn.Text = "+"
+    else
+        Main:TweenSizeAndPosition(UDim2.new(0, 820, 0, 440), UDim2.new(0, curX - 820, 0, curY), "Out", "Quad", 0.15, true, function()
+            ContentFrame.Visible = true
+            ControlBtn.Visible = true
+            SelfBtn.Visible = true
+            DelBtn.Visible = true
+            
+            if KeybindBtn then KeybindBtn.Visible = true end
+            if ClearKeybindBtn then ClearKeybindBtn.Visible = true end
+            
+            if not controlMode then
+                AntiSpamBtn.Visible = true
+                BlockBtn.Visible = true
+            end
+        end)
+        MinBtn.Text = "_"
+        lastCount = -1
+    end
+end)
+
+if not isMobile and KeybindBtn and ClearKeybindBtn then
+    local currentKeybind = nil
+    local isBinding = false
+
+    KeybindBtn.MouseButton1Click:Connect(function()
+        isBinding = true
+        KeybindBtn.Text = "..."
+    end)
+
+    ClearKeybindBtn.MouseButton1Click:Connect(function()
+        currentKeybind = nil
+        KeybindBtn.Text = "BIND: NONE"
+    end)
+
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if isBinding then
+            if input.UserInputType == Enum.UserInputType.Keyboard then
+                currentKeybind = input.KeyCode
+                isBinding = false
+                KeybindBtn.Text = input.KeyCode.Name:upper()
+            end
+            return
+        end
+        
+        if currentKeybind and input.KeyCode == currentKeybind then
+            local events = getconnections(MinBtn.MouseButton1Click)
+            for _, connection in ipairs(events) do
+                connection:Fire()
+            end
+        end
+    end)
+end
+
 -- ================= RENDER LOOP (ОПТИМИЗИРОВАН БЕЗ ЛАГОВ) =================
 task.spawn(function()
     while task.wait(0.5) do
@@ -873,77 +943,3 @@ end
 createTypeBtn("FS SPY: ON", UDim2.new(0, 662, 0, 8), spyFS, Color3.fromRGB(130, 70, 220), "FS")
 createTypeBtn("FC SPY: OFF", UDim2.new(0, 662, 0, 48), spyFC, Color3.fromRGB(50, 150, 255), "FC")
 createTypeBtn("IS SPY: OFF", UDim2.new(0, 662, 0, 88), spyIS, Color3.fromRGB(255, 150, 50), "IS")
-
--- ================= ЕДИНЫЙ БЛОК СВОРAЧИВАНИЯ И КЕЙБИНДА =================
-MinBtn.MouseButton1Click:Connect(function()
-    isMin = not isMin
-    local curX = Main.AbsolutePosition.X + Main.AbsoluteSize.X
-    local curY = Main.AbsolutePosition.Y
-    
-    if isMin then
-        ContentFrame.Visible = false
-        ControlBtn.Visible = false
-        SelfBtn.Visible = false
-        AntiSpamBtn.Visible = false
-        BlockBtn.Visible = false
-        DelBtn.Visible = false
-        
-        if KeybindBtn then KeybindBtn.Visible = false end
-        if ClearKeybindBtn then ClearKeybindBtn.Visible = false end
-       
-        Main:TweenSizeAndPosition(UDim2.new(0, 250, 0, 35), UDim2.new(0, curX - 250, 0, curY), "Out", "Quad", 0.15, true)
-        MinBtn.Text = "+"
-    else
-        Main:TweenSizeAndPosition(UDim2.new(0, 820, 0, 440), UDim2.new(0, curX - 820, 0, curY), "Out", "Quad", 0.15, true, function()
-            ContentFrame.Visible = true
-            ControlBtn.Visible = true
-            SelfBtn.Visible = true
-            DelBtn.Visible = true
-            
-            if KeybindBtn then KeybindBtn.Visible = true end
-            if ClearKeybindBtn then ClearKeybindBtn.Visible = true end
-            
-            if not controlMode then
-                AntiSpamBtn.Visible = true
-                BlockBtn.Visible = true
-            end
-        end)
-        MinBtn.Text = "_"
-        lastCount = -1
-    end
-end)
-
-if not isMobile and KeybindBtn and ClearKeybindBtn then
-    local currentKeybind = nil
-    local isBinding = false
-
-    KeybindBtn.MouseButton1Click:Connect(function()
-        isBinding = true
-        KeybindBtn.Text = "..."
-    end)
-
-    ClearKeybindBtn.MouseButton1Click:Connect(function()
-        currentKeybind = nil
-        KeybindBtn.Text = "NONE"
-    end)
-
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        
-        if isBinding then
-            if input.UserInputType == Enum.UserInputType.Keyboard then
-                currentKeybind = input.KeyCode
-                isBinding = false
-                KeybindBtn.Text = input.KeyCode.Name:upper()
-            end
-            return
-        end
-        
-        if currentKeybind and input.KeyCode == currentKeybind then
-            local events = getconnections(MinBtn.MouseButton1Click)
-            for _, connection in ipairs(events) do
-                connection:Fire()
-            end
-        end
-    end)
-end
