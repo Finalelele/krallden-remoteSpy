@@ -745,7 +745,7 @@ if not isMobile and KeybindBtn and ClearKeybindBtn then
             if input.UserInputType == Enum.UserInputType.Keyboard then
                 currentKeybind = input.KeyCode
                 isBinding = false
-                KeybindBtn.Text = input.KeyCode.Name:upper()
+                KeybindBtn.Text = "BIND: " .. input.KeyCode.Name:upper()
             end
             return
         end
