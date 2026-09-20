@@ -5,10 +5,8 @@ local playerGui = player:WaitForChild("PlayerGui")
 local TextService = game:GetService("TextService")
 local UserInputService = game:GetService("UserInputService")
 
--- Проверка на мобильное устройство (Touch есть, Клавиатуры нет)
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
--- Очистка старых версий
 if playerGui:FindFirstChild("KralldenSpyUI") then 
     playerGui.KralldenSpyUI:Destroy() 
 end
@@ -49,14 +47,12 @@ Main.Draggable = true
 Main.BorderSizePixel = 0
 Main.Parent = ScreenGui
 
--- Основные переменные и таблицы
 local MainMemory = {}
 local PathFilter = {}
 local ManualBannedPaths = {}
 local AntiSpamCooldowns = {}
 local AntiSpamCounts = {}
 
--- Кэш путей для предотвращения лагов при вызове getSafePath
 local pathCache = setmetatable({}, {__mode = "k"})
 
 local selfMode = true
@@ -83,7 +79,6 @@ local Details
 local ContentFrame
 local DetailsScroll
 
--- Вспомогательные функции UI
 local activeFeedbacks = {}
 local function feedback(button, tempText)
     if not button or activeFeedbacks[button] then 
@@ -142,7 +137,6 @@ local function refreshSelectionColors()
     end
 end
 
--- Форматирование данных
 local function formatTableVisual(val, indent)
     indent = indent or 0
     local tab = string.rep("    ", indent)
@@ -203,7 +197,6 @@ local function getSortedDetails(d)
     return prefix .. string.format("Type: %s\n\nPath: %s\n\nArgs: %s\n\nScript:\n%s:%s(%s)", d.type, d.path, displayArgs, d.path, methodName, d.argsStr)
 end
 
--- Логика Бан-листа (UI)
 local function updateRedListUI()
     if not RedListScroll then return end
     for _, v in pairs(RedListScroll:GetChildren()) do 
