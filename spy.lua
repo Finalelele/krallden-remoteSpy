@@ -1,4 +1,4 @@
--- [[ KRALLDEN SPY v9.9.2 - SAVE SETTINGS + FIXED SCALE ANCHOR ]] --
+-- [[ KRALLDEN SPY v9.9.3 - FIXED activeTween INDEX ERROR ]] --
 
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -24,7 +24,6 @@ if hasFileIO then
     end
 end
 
--- Настройки по умолчанию / из файла
 local selfMode   = true
 local controlMode = true
 local antiSpam   = true
@@ -132,38 +131,53 @@ tsCorner.Parent = TestScaleBtn
 local scaleModes = {1, 2/3}
 local scaleIdx = isMobile and 2 or 1
 
--- Универсальный хелпер: меняет размер Main, сохраняя правый-верхний угол
+-- Активный твин храним в локальной переменной (не в свойстве функции!)
+local activeMainTween = nil
+
+-- Универсальный хелпер: меняет размер Main, сохраняя правый-верхний угол.
+-- Работает в координатах родителя (ScreenGui) — не путается с GuiInset.
 local function setMainSizeKeepRight(newW, newH, animate, onDone)
     local s = uiScale.Scale or 1
     if s <= 0 then s = 1 end
 
-    local absX = Main.AbsolutePosition.X
-    local absY = Main.AbsolutePosition.Y
-    local rightX = absX + Main.AbsoluteSize.X
+    local parent = Main.Parent
+    if not parent then return end
+    local parentW = parent.AbsoluteSize.X
+    local parentH = parent.AbsoluteSize.Y
+    if parentW <= 0 or parentH <= 0 then return end
 
-    -- новый left-edge в абсолютных пикселях
-    local newLeftAbsX = rightX - newW * s
-    local targetPos = UDim2.new(0, newLeftAbsX, 0, absY)
+    local scaleX = Main.Position.X.Scale
+    local scaleY = Main.Position.Y.Scale
+    local logicalX = scaleX * parentW + Main.Position.X.Offset
+    local logicalY = scaleY * parentH + Main.Position.Y.Offset
+    local logicalW = Main.Size.X.Offset
+
+    -- Правый край с учётом UIScale
+    local rightX = logicalX + logicalW * s
+
+    -- Новый логический left, чтобы правый край остался на месте
+    local newLogicalX = rightX - newW * s
+    local newOffX = newLogicalX - scaleX * parentW
+    local newOffY = logicalY - scaleY * parentH
+
+    if activeMainTween then
+        activeMainTween:Cancel()
+        activeMainTween = nil
+    end
+
+    local targetPos = UDim2.new(scaleX, newOffX, scaleY, newOffY)
     local targetSize = UDim2.new(0, newW, 0, newH)
-
-    -- Сначала фиксируем позицию без Scale-компонента, чтобы не было
-    -- нелинейного смещения при твине
-    if Main.Position.X.Scale ~= 0 or Main.Position.Y.Scale ~= 0 then
-        Main.Position = UDim2.new(0, absX, 0, absY)
-    end
-
-    if setMainSizeKeepRight.activeTween then
-        setMainSizeKeepRight.activeTween:Cancel()
-        setMainSizeKeepRight.activeTween = nil
-    end
 
     if animate then
         local info = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
         local t = TweenService:Create(Main, info, { Size = targetSize, Position = targetPos })
-        setMainSizeKeepRight.activeTween = t
+        activeMainTween = t
         if onDone then
             t.Completed:Connect(function(state)
-                if state == Enum.PlaybackState.Completed and onDone then onDone() end
+                if state == Enum.PlaybackState.Completed and activeMainTween == t then
+                    onDone()
+                    activeMainTween = nil
+                end
             end)
         end
         t:Play()
@@ -178,24 +192,31 @@ TestScaleBtn.MouseButton1Click:Connect(function()
     scaleIdx = (scaleIdx % #scaleModes) + 1
     local newS = scaleModes[scaleIdx]
 
-    -- Сохраняем правый-верхний угол при смене UIScale
-    local sOld = uiScale.Scale or 1
-    if sOld <= 0 then sOld = 1 end
+    local parent = Main.Parent
+    if not parent then return end
+    local parentW = parent.AbsoluteSize.X
+    local parentH = parent.AbsoluteSize.Y
+    if parentW <= 0 or parentH <= 0 then return end
 
-    local absX = Main.AbsolutePosition.X
-    local absY = Main.AbsolutePosition.Y
-    local rightX = absX + Main.AbsoluteSize.X
-
-    -- Текущая логическая ширина
+    local scaleX = Main.Position.X.Scale
+    local scaleY = Main.Position.Y.Scale
+    local logicalX = scaleX * parentW + Main.Position.X.Offset
+    local logicalY = scaleY * parentH + Main.Position.Y.Offset
     local logicalW = Main.Size.X.Offset
     local logicalH = Main.Size.Y.Offset
 
+    local sOld = uiScale.Scale or 1
+    if sOld <= 0 then sOld = 1 end
+
+    local rightX = logicalX + logicalW * sOld
+
     uiScale.Scale = newS
 
-    -- после смены scale рендер-ширина станет logicalW * newS,
-    -- а левый край = rightX - logicalW * newS
-    local newLeftAbsX = rightX - logicalW * newS
-    Main.Position = UDim2.new(0, newLeftAbsX, 0, absY)
+    local newLogicalX = rightX - logicalW * newS
+    local newOffX = newLogicalX - scaleX * parentW
+    local newOffY = logicalY - scaleY * parentH
+
+    Main.Position = UDim2.new(scaleX, newOffX, scaleY, newOffY)
     Main.Size = UDim2.new(0, logicalW, 0, logicalH)
 
     TestScaleBtn.Text = tostring(math.floor(newS * 100 + 0.5)) .. "%"
@@ -384,7 +405,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(0, 200, 1, 0)
 Title.BackgroundTransparency = 1
 Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "KRALLDEN SPY v9.9.2"
+Title.Text = "KRALLDEN SPY v9.9.3"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 16
@@ -1122,10 +1143,8 @@ end, 4)
 createToggleRow("SAVE SETTINGS", saveSettingsEnabled, Color3.fromRGB(200, 100, 220), function()
     saveSettingsEnabled = not saveSettingsEnabled
     if saveSettingsEnabled then
-        -- Сохраняем сразу текущее состояние
         saveSettings()
     else
-        -- Отключаем сохранение: можно оставить файл, но флаг saveEnabled = false
         if hasFileIO then
             local data = {
                 saveEnabled = false,
